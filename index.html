@@ -230,7 +230,7 @@
     entries = upsert(entries, result.date, result.weight);
     save();
     weightInput.value = '';
-    dateInput.value = nextLogDate(result.date, now);
+    setDate(nextLogDate(result.date, now));
     render();
   });
 
@@ -239,8 +239,21 @@
     renderTable(sortEntries(entries));
   });
 
-  dateInput.value = today();
-  dateInput.max = today();
+  // autoDate = the value the app itself put in the date field; lastDay = the day it did so.
+  let autoDate = '', lastDay = '';
+  function setDate(value) {
+    autoDate = dateInput.value = value;
+    lastDay = dateInput.max = today();
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    const now = today();
+    const value = resumeDate(dateInput.value, autoDate, lastDay, now);
+    if (value !== dateInput.value) autoDate = dateInput.value = value;
+    lastDay = dateInput.max = now;
+  });
+
+  setDate(today());
   load();
 
   if ('serviceWorker' in navigator) {

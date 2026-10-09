@@ -67,6 +67,11 @@
   eq('next capped', nextLogDate('2026-10-09', '2026-10-09'), '2026-10-09');
   eq('next month end', nextLogDate('2026-09-30', '2026-12-01'), '2026-10-01');
 
+  // resumeDate: iPhone home-screen apps resume without reloading (final review Important #1)
+  eq('resume next day, auto value → today', resumeDate('2026-10-09', '2026-10-09', '2026-10-09', '2026-10-10'), '2026-10-10');
+  eq('resume next day, user-picked date kept', resumeDate('2026-10-05', '2026-10-09', '2026-10-09', '2026-10-10'), '2026-10-05');
+  eq('resume same day, backfill auto value kept', resumeDate('2026-10-07', '2026-10-07', '2026-10-09', '2026-10-09'), '2026-10-07');
+
   document.getElementById('out').textContent =
     fails.length ? 'FAIL\n' + fails.join('\n') : 'ALL PASS';
 </script>
