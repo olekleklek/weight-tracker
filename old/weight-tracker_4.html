@@ -1,0 +1,251 @@
+<div style="display:flex;flex-direction:column;gap:1rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;">Weight tracker: log your weight in kilograms and see gain or loss versus your last entry, plus a table of past logs.</h2>
+
+  <div class="card" style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem;">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:stretch;justify-content:center;">
+      <input type="date" id="wt-date" style="flex:1;min-width:130px;height:40px;border:none;background:var(--surface-1);border-radius:8px;padding:0 12px;font-size:14px;font-weight:500;cursor:pointer;box-sizing:border-box;">
+      <div style="flex:1;min-width:130px;position:relative;">
+        <input type="number" id="wt-weight" step="0.1" placeholder="0.0" style="width:100%;height:40px;border:0.5px solid var(--border-strong);border-radius:8px;padding:0 36px 0 12px;font-size:14px;font-weight:500;box-sizing:border-box;">
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text-secondary);pointer-events:none;">kg</span>
+      </div>
+      <button id="wt-submit" style="width:44px;height:24px;border:none;border-radius:6px;background:#26215C;color:#fff;font-size:11px;font-weight:500;cursor:pointer;letter-spacing:0.3px;box-sizing:border-box;align-self:center;margin-top:2px;">LOG</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;">
+      <span id="wt-error" style="font-size:13px;color:var(--text-danger);"></span>
+    </div>
+  </div>
+
+  <div id="wt-table-wrap" style="display:none;background:var(--surface-2);border:0.5px solid var(--border-strong);border-radius:12px;padding:0.5rem 1.25rem;overflow:hidden;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <thead>
+        <tr>
+          <th id="wt-sort-date" style="text-align:left;padding:10px 8px;color:var(--text-secondary);font-weight:500;border:0.5px solid var(--border-strong);cursor:pointer;user-select:none;">Date <span id="wt-sort-arrow">↓</span></th>
+          <th style="text-align:right;padding:10px 8px;color:var(--text-secondary);font-weight:500;border:0.5px solid var(--border-strong);">Weight (kg)</th>
+          <th style="text-align:right;padding:10px 8px;color:var(--text-secondary);font-weight:500;border:0.5px solid var(--border-strong);">Change</th>
+        </tr>
+      </thead>
+      <tbody id="wt-table-body"></tbody>
+    </table>
+  </div>
+
+  <div id="wt-summary" style="display:none;background:var(--surface-1);border-radius:8px;padding:1rem;">
+    <p id="wt-latest" style="margin:0;font-size:15px;font-weight:500;"></p>
+    <p id="wt-delta" style="margin:4px 0 0;font-size:14px;color:var(--text-secondary);"></p>
+    <p id="wt-quote" style="margin:10px 0 0;font-size:14px;font-style:italic;color:#534AB7;border-top:0.5px solid var(--border);padding-top:10px;"></p>
+  </div>
+
+  <p id="wt-empty" style="text-align:center;color:var(--text-muted);font-size:14px;">Loading…</p>
+</div>
+
+<style>
+  #wt-date::-webkit-calendar-picker-indicator { cursor: pointer; }
+</style>
+<script>
+(function() {
+  const dateInput = document.getElementById('wt-date');
+  const weightInput = document.getElementById('wt-weight');
+  const errorEl = document.getElementById('wt-error');
+  const submitBtn = document.getElementById('wt-submit');
+  const summaryEl = document.getElementById('wt-summary');
+  const latestEl = document.getElementById('wt-latest');
+  const deltaEl = document.getElementById('wt-delta');
+  const tableWrap = document.getElementById('wt-table-wrap');
+  const tableBody = document.getElementById('wt-table-body');
+  const sortDateHeader = document.getElementById('wt-sort-date');
+  const sortArrow = document.getElementById('wt-sort-arrow');
+  const emptyEl = document.getElementById('wt-empty');
+  const quoteEl = document.getElementById('wt-quote');
+  const unit = 'kg';
+  const GOAL = 75;
+  let sortDesc = true;
+
+  const lossQuotes = [
+    "Every kg down is a step closer to 75. Keep going.",
+    "Progress, not perfection. You're moving the right direction.",
+    "Small drops add up to big change. Stay consistent.",
+    "The scale is catching up to your effort. Well done."
+  ];
+  const gainQuotes = [
+    "One day doesn't undo your progress. Reset tomorrow.",
+    "Fluctuations happen. Focus on the trend, not the day.",
+    "75 kg is still the plan. This is just a bump in the road.",
+    "Be kind to yourself. Consistency beats a single bad day."
+  ];
+  const steadyQuotes = [
+    "Holding steady. Keep showing up for your goal.",
+    "No change today — stability is progress too."
+  ];
+
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  dateInput.value = todayStr();
+  dateInput.max = todayStr();
+
+  let entries = [];
+
+  async function load() {
+    let loaded = false;
+    try {
+      if (window.storage && typeof window.storage.get === 'function') {
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
+        const res = await Promise.race([window.storage.get('weight-entries'), timeout]);
+        if (res) {
+          const data = JSON.parse(res.value);
+          entries = data.entries || [];
+          loaded = true;
+        }
+      }
+    } catch (e) { /* fall through to localStorage */ }
+
+    if (!loaded) {
+      try {
+        const local = localStorage.getItem('weight-entries');
+        if (local) {
+          const data = JSON.parse(local);
+          entries = data.entries || [];
+        }
+      } catch (e) { /* no data available */ }
+    }
+
+    emptyEl.textContent = 'No entries yet — log your first weight above.';
+    render();
+  }
+
+  async function save() {
+    const payload = JSON.stringify({ entries, unit });
+    try {
+      localStorage.setItem('weight-entries', payload);
+    } catch (e) { /* localStorage unavailable, ignore */ }
+    try {
+      if (window.storage && typeof window.storage.set === 'function') {
+        await window.storage.set('weight-entries', payload);
+      }
+    } catch (e) {
+      errorEl.textContent = 'Could not sync to cloud, saved locally.';
+    }
+  }
+
+  function sortedEntries() {
+    return [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function renderTable(sorted) {
+    if (sorted.length === 0) {
+      tableWrap.style.display = 'none';
+      return;
+    }
+    tableWrap.style.display = 'block';
+    // sorted is chronological ascending; build change map using chronological order
+    const changeMap = new Map();
+    sorted.forEach((e, i) => {
+      const prevEntry = sorted[i - 1];
+      changeMap.set(e.date, prevEntry ? +(e.weight - prevEntry.weight).toFixed(1) : null);
+    });
+
+    const display = sortDesc ? [...sorted].reverse() : sorted;
+    let rows = '';
+    display.forEach((e, i) => {
+      const diff = changeMap.get(e.date);
+      let changeHtml = '<span style="color:var(--text-muted);">—</span>';
+      if (diff !== null && diff !== undefined) {
+        if (diff === 0) {
+          changeHtml = '<span style="color:var(--text-muted);">0.0</span>';
+        } else {
+          const color = diff > 0 ? '#993C1D' : '#0F6E56';
+          const sign = diff > 0 ? '+' : '';
+          changeHtml = `<span style="color:${color};">${sign}${diff}</span>`;
+        }
+      }
+      const rowBg = i % 2 === 1 ? '#EEEDFE' : '#FFFFFF';
+      rows += `<tr style="background:${rowBg};">
+        <td style="padding:10px 8px;border:0.5px solid var(--border-strong);">${e.date}</td>
+        <td style="text-align:right;padding:10px 8px;border:0.5px solid var(--border-strong);font-weight:500;">${e.weight.toFixed(1)}</td>
+        <td style="text-align:right;padding:10px 8px;border:0.5px solid var(--border-strong);">${changeHtml}</td>
+      </tr>`;
+    });
+    tableBody.innerHTML = rows;
+    sortArrow.textContent = sortDesc ? '↓' : '↑';
+  }
+
+  function render() {
+    const sorted = sortedEntries();
+    const last = sorted[sorted.length - 1];
+
+    if (!last) {
+      emptyEl.style.display = 'block';
+      summaryEl.style.display = 'none';
+      tableWrap.style.display = 'none';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    summaryEl.style.display = 'block';
+    latestEl.textContent = `Latest: ${last.weight} kg on ${last.date}`;
+
+    if (sorted.length >= 2) {
+      const prev = sorted[sorted.length - 2];
+      const diff = +(last.weight - prev.weight).toFixed(1);
+      const days = Math.round((new Date(last.date) - new Date(prev.date)) / 86400000);
+      const dayLabel = days + (days === 1 ? ' day' : ' days');
+      if (diff === 0) {
+        deltaEl.textContent = `No change since ${prev.date} (${dayLabel} ago).`;
+        quoteEl.textContent = steadyQuotes[Math.floor(Math.random() * steadyQuotes.length)];
+      } else {
+        const dir = diff > 0 ? 'gained' : 'lost';
+        deltaEl.textContent = `You've ${dir} ${Math.abs(diff)} kg since ${prev.date} (${dayLabel} ago).`;
+        const pool = diff > 0 ? gainQuotes : lossQuotes;
+        quoteEl.textContent = pool[Math.floor(Math.random() * pool.length)];
+      }
+    } else {
+      deltaEl.textContent = 'Log another entry to see your trend.';
+      const toGo = +(last.weight - GOAL).toFixed(1);
+      quoteEl.textContent = toGo > 0
+        ? `${toGo} kg to go until your 75 kg goal. You've got this.`
+        : "You've hit your 75 kg goal — keep it steady.";
+    }
+
+    renderTable(sorted);
+  }
+
+  submitBtn.addEventListener('click', async () => {
+    errorEl.textContent = '';
+    const val = parseFloat(weightInput.value);
+    if (!weightInput.value || isNaN(val) || val <= 0) {
+      errorEl.textContent = 'Enter a valid weight first';
+      return;
+    }
+    const date = dateInput.value || todayStr();
+    entries = entries.filter(e => e.date !== date);
+    entries.push({ date, weight: val });
+    submitBtn.disabled = true;
+    await save();
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'LOG';
+    weightInput.value = '';
+
+    // increment date to the next day
+    const nextDate = new Date(date + 'T00:00:00');
+    nextDate.setDate(nextDate.getDate() + 1);
+    const todayLimit = todayStr();
+    const nextStr = nextDate.getFullYear() + '-' + String(nextDate.getMonth()+1).padStart(2,'0') + '-' + String(nextDate.getDate()).padStart(2,'0');
+    dateInput.value = nextStr > todayLimit ? todayLimit : nextStr;
+
+    render();
+  });
+
+  weightInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitBtn.click();
+    }
+  });
+
+  sortDateHeader.addEventListener('click', () => {
+    sortDesc = !sortDesc;
+    renderTable(sortedEntries());
+  });
+
+  load();
+})();
+</script>

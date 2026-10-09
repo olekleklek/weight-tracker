@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Weight Tracker</title>
+<meta name="theme-color" content="#26215C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Weight">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #F7F6FB; --surface-1: #FFFFFF; --surface-2: #F1F0F7;
+    --border: #E2E0EC; --border-strong: #CFCCE0;
+    --text: #1B1830; --text-secondary: #5E5A75; --text-muted: #8C88A3; --text-danger: #B3261E;
+    --row-alt: #EEEDFE; --accent: #26215C; --quote: #534AB7; --gain: #993C1D; --loss: #0F6E56;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121019; --surface-1: #1C1927; --surface-2: #232032;
+      --border: #34304A; --border-strong: #46415F;
+      --text: #ECEAF5; --text-secondary: #B4B0C8; --text-muted: #8A86A0; --text-danger: #F2B8B5;
+      --row-alt: #2A2640; --accent: #7F77DD; --quote: #AFA9EC; --gain: #F0997B; --loss: #5DCAA5;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  main { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 1rem; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+  .entry { display: flex; gap: 8px; flex-wrap: wrap; }
+  .entry input {
+    height: 44px; border-radius: 8px; color: var(--text); background: var(--surface-1);
+    font-family: inherit; font-size: 16px; font-weight: 500; min-width: 0; -webkit-appearance: none;
+  }
+  #wt-date { flex: 1 1 140px; border: none; padding: 0 12px; }
+  .weight { flex: 1 1 140px; position: relative; }
+  #wt-weight { width: 100%; border: 1px solid var(--border-strong); padding: 0 36px 0 12px; }
+  .weight span { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--text-secondary); pointer-events: none; }
+  #wt-submit {
+    min-width: 64px; height: 44px; border: none; border-radius: 8px; background: var(--accent); color: #fff;
+    font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; cursor: pointer;
+  }
+  .error { margin: 8px 0 0; min-height: 1em; text-align: right; font-size: 13px; color: var(--text-danger); }
+  .warn { margin: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--text-danger); background: var(--surface-2); color: var(--text-danger); font-size: 14px; }
+  .table-wrap { background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 12px; padding: 0.5rem; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 8px; border: 1px solid var(--border-strong); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--text-secondary); font-weight: 500; }
+  td { background: var(--surface-1); }
+  td:nth-child(2) { font-weight: 500; }
+  tr.alt td { background: var(--row-alt); }
+  .sort { all: unset; cursor: pointer; }
+  .gain { color: var(--gain); } .loss { color: var(--loss); } .muted { color: var(--text-muted); }
+  .summary { background: var(--surface-1); border-radius: 8px; padding: 1rem; }
+  #wt-latest { margin: 0; font-size: 15px; font-weight: 500; }
+  #wt-delta { margin: 4px 0 0; font-size: 14px; color: var(--text-secondary); }
+  #wt-quote { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--border); font-size: 14px; font-style: italic; color: var(--quote); }
+  #wt-empty { text-align: center; color: var(--text-muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1 class="sr-only">Weight tracker: log your weight in kilograms and see gain or loss versus your last entry.</h1>
+
+  <p id="wt-storage" class="warn" role="alert" hidden>Not saved — storage is unavailable on this device.</p>
+
+  <section class="card">
+    <form id="wt-form" class="entry" novalidate>
+      <label class="sr-only" for="wt-date">Date</label>
+      <input type="date" id="wt-date">
+      <div class="weight">
+        <label class="sr-only" for="wt-weight">Weight in kg</label>
+        <input type="text" id="wt-weight" inputmode="decimal" autocomplete="off" placeholder="0.0">
+        <span>kg</span>
+      </div>
+      <button id="wt-submit" type="submit">LOG</button>
+    </form>
+    <p id="wt-error" class="error" role="alert"></p>
+  </section>
+
+  <div id="wt-table-wrap" class="table-wrap" hidden>
+    <table>
+      <thead>
+        <tr>
+          <th><button id="wt-sort-date" class="sort" type="button">Date <span id="wt-sort-arrow">↓</span></button></th>
+          <th>Weight (kg)</th>
+          <th>Change</th>
+        </tr>
+      </thead>
+      <tbody id="wt-table-body"></tbody>
+    </table>
+  </div>
+
+  <div id="wt-summary" class="summary" hidden>
+    <p id="wt-latest"></p>
+    <p id="wt-delta"></p>
+    <p id="wt-quote"></p>
+  </div>
+
+  <p id="wt-empty">No entries yet — log your first weight above.</p>
+</main>
+
+<script src="logic.js"></script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const form = $('wt-form'), dateInput = $('wt-date'), weightInput = $('wt-weight');
+  const errorEl = $('wt-error'), storageEl = $('wt-storage');
+  const tableWrap = $('wt-table-wrap'), tableBody = $('wt-table-body');
+  const sortBtn = $('wt-sort-date'), sortArrow = $('wt-sort-arrow');
+  const summaryEl = $('wt-summary'), latestEl = $('wt-latest'), deltaEl = $('wt-delta'), quoteEl = $('wt-quote');
+  const emptyEl = $('wt-empty');
+
+  const KEY = 'weight-entries', SEEDED_KEY = 'weight-seeded', unit = 'kg', GOAL = 75;
+  let entries = [];
+  let sortDesc = true;
+
+  const lossQuotes = [
+    "Every kg down is a step closer to 75. Keep going.",
+    "Progress, not perfection. You're moving the right direction.",
+    "Small drops add up to big change. Stay consistent.",
+    "The scale is catching up to your effort. Well done."
+  ];
+  const gainQuotes = [
+    "One day doesn't undo your progress. Reset tomorrow.",
+    "Fluctuations happen. Focus on the trend, not the day.",
+    "75 kg is still the plan. This is just a bump in the road.",
+    "Be kind to yourself. Consistency beats a single bad day."
+  ];
+  const steadyQuotes = [
+    "Holding steady. Keep showing up for your goal.",
+    "No change today — stability is progress too."
+  ];
+  const pick = list => list[Math.floor(Math.random() * list.length)];
+  const today = () => ymd(new Date());
+
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ entries, unit }));
+      storageEl.hidden = true;
+      return true;
+    } catch (e) {
+      storageEl.hidden = false; // entry stays on screen, but tell the user it isn't stored
+      return false;
+    }
+  }
+
+  function load() {
+    let raw = null, seeded = false;
+    try {
+      raw = localStorage.getItem(KEY);
+      seeded = localStorage.getItem(SEEDED_KEY) === '1';
+    } catch (e) {
+      storageEl.hidden = false;
+    }
+    // Corrupt data parses to [] and is left in storage until the next successful save.
+    const result = seedIfNeeded(parseEntries(raw), seeded);
+    entries = result.entries;
+    if (!seeded && save()) {
+      try { localStorage.setItem(SEEDED_KEY, '1'); } catch (e) { storageEl.hidden = false; }
+    }
+    render();
+  }
+
+  function renderTable(sorted) {
+    const changes = changeMap(sorted);
+    const display = sortDesc ? [...sorted].reverse() : sorted;
+    tableBody.innerHTML = display.map((e, i) => {
+      const d = changes[e.date];
+      let cell = '<span class="muted">—</span>';
+      if (d === 0) cell = '<span class="muted">0.0</span>';
+      else if (d !== null) cell = `<span class="${d > 0 ? 'gain' : 'loss'}">${d > 0 ? '+' : ''}${d.toFixed(1)}</span>`;
+      return `<tr${i % 2 ? ' class="alt"' : ''}><td>${e.date}</td><td>${e.weight.toFixed(1)}</td><td>${cell}</td></tr>`;
+    }).join('');
+    sortArrow.textContent = sortDesc ? '↓' : '↑';
+  }
+
+  function render() {
+    const sorted = sortEntries(entries);
+    const last = sorted[sorted.length - 1];
+    emptyEl.hidden = !!last;
+    summaryEl.hidden = !last;
+    tableWrap.hidden = !last;
+    if (!last) return;
+
+    latestEl.textContent = `Latest: ${last.weight.toFixed(1)} kg on ${last.date}`;
+    if (sorted.length >= 2) {
+      const prev = sorted[sorted.length - 2];
+      const diff = +(last.weight - prev.weight).toFixed(1);
+      const days = Math.round((Date.parse(last.date) - Date.parse(prev.date)) / 86400000);
+      const dayLabel = days + (days === 1 ? ' day' : ' days');
+      if (diff === 0) {
+        deltaEl.textContent = `No change since ${prev.date} (${dayLabel} ago).`;
+        quoteEl.textContent = pick(steadyQuotes);
+      } else {
+        deltaEl.textContent = `You've ${diff > 0 ? 'gained' : 'lost'} ${Math.abs(diff).toFixed(1)} kg since ${prev.date} (${dayLabel} ago).`;
+        quoteEl.textContent = pick(diff > 0 ? gainQuotes : lossQuotes);
+      }
+    } else {
+      deltaEl.textContent = 'Log another entry to see your trend.';
+      const toGo = +(last.weight - GOAL).toFixed(1);
+      quoteEl.textContent = toGo > 0
+        ? `${toGo.toFixed(1)} kg to go until your ${GOAL} kg goal. You've got this.`
+        : `You've hit your ${GOAL} kg goal — keep it steady.`;
+    }
+    renderTable(sorted);
+  }
+
+  form.addEventListener('submit', ev => {
+    ev.preventDefault(); // also handles Enter and the iPhone keyboard "Go" key
+    errorEl.textContent = '';
+    const now = today();
+    const result = validateEntry(dateInput.value, weightInput.value, now);
+    if (result.error) {
+      errorEl.textContent = result.error;
+      return;
+    }
+    entries = upsert(entries, result.date, result.weight);
+    save();
+    weightInput.value = '';
+    dateInput.value = nextLogDate(result.date, now);
+    render();
+  });
+
+  sortBtn.addEventListener('click', () => {
+    sortDesc = !sortDesc;
+    renderTable(sortEntries(entries));
+  });
+
+  dateInput.value = today();
+  dateInput.max = today();
+  load();
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* online-only fallback */ });
+  }
+})();
+</script>
+</body>
+</html>

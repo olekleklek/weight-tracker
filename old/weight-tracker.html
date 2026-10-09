@@ -1,0 +1,144 @@
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.0/Recharts.js"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .card { background: #fff; border: 0.5px solid #e5e5e0; border-radius: 12px; padding: 1rem 1.25rem; }
+  input[type=number] { width: 100%; height: 36px; border: 0.5px solid #d3d1c7; border-radius: 8px; padding: 0 10px; font-size: 15px; box-sizing: border-box; }
+  input[type=date] { height: 36px; border: 0.5px solid #d3d1c7; border-radius: 8px; padding: 0 10px; font-size: 14px; }
+  button { height: 36px; border: 0.5px solid #b4b2a9; border-radius: 8px; background: transparent; padding: 0 16px; font-size: 14px; cursor: pointer; }
+  button:hover { background: #f1efe8; }
+  button:active { transform: scale(0.98); }
+  button.primary { background: #26215C; color: #fff; border: none; }
+  button.primary:hover { background: #3C3489; }
+</style>
+<script>
+const { useState, useEffect, useCallback } = React;
+const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = Recharts;
+
+function todayStr() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+
+function App() {
+  const [entries, setEntries] = useState(null); // null = loading
+  const [weight, setWeight] = useState('');
+  const [date, setDate] = useState(todayStr());
+  const [unit, setUnit] = useState('lb');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await window.storage.get('weight-entries');
+      const data = res ? JSON.parse(res.value) : { entries: [], unit: 'lb' };
+      setEntries(data.entries || []);
+      setUnit(data.unit || 'lb');
+    } catch (e) {
+      setEntries([]);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (newEntries, newUnit) => {
+    await window.storage.set('weight-entries', JSON.stringify({ entries: newEntries, unit: newUnit }));
+  };
+
+  const sorted = entries ? [...entries].sort((a, b) => a.date.localeCompare(b.date)) : [];
+  const last = sorted.length ? sorted[sorted.length - 1] : null;
+
+  const handleSubmit = async () => {
+    setError('');
+    const val = parseFloat(weight);
+    if (!weight || isNaN(val) || val <= 0) {
+      setError('Enter a valid weight first');
+      return;
+    }
+    setSaving(true);
+    let newEntries = entries.filter(e => e.date !== date);
+    newEntries.push({ date, weight: val });
+    newEntries.sort((a, b) => a.date.localeCompare(b.date));
+    setEntries(newEntries);
+    await save(newEntries, unit);
+    setWeight('');
+    setSaving(false);
+  };
+
+  const changeUnit = async (u) => {
+    setUnit(u);
+    await save(entries, u);
+  };
+
+  if (entries === null) {
+    return React.createElement('div', { style: { padding: '2rem', textAlign: 'center', color: '#888' } }, 'Loading…');
+  }
+
+  // Compute delta vs previous entry before the one just logged, or vs entry before today if editing today
+  let deltaMsg = null;
+  if (sorted.length >= 2) {
+    const latest = sorted[sorted.length - 1];
+    const prev = sorted[sorted.length - 2];
+    const diff = +(latest.weight - prev.weight).toFixed(1);
+    const daysApart = Math.round((new Date(latest.date) - new Date(prev.date)) / 86400000);
+    const dir = diff > 0 ? 'gained' : diff < 0 ? 'lost' : 'stayed the same';
+    deltaMsg = diff === 0
+      ? `No change since ${prev.date} (${daysApart} day${daysApart !== 1 ? 's' : ''} ago).`
+      : `You've ${dir} ${Math.abs(diff)} ${unit} since ${prev.date} (${daysApart} day${daysApart !== 1 ? 's' : ''} ago).`;
+  }
+
+  return React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '1rem' } },
+    // Input card
+    React.createElement('div', { className: 'card' },
+      React.createElement('div', { style: { display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center' } },
+        React.createElement('input', {
+          type: 'date', value: date, max: todayStr(),
+          onChange: e => setDate(e.target.value)
+        }),
+        React.createElement('input', {
+          type: 'number', step: '0.1', placeholder: `Weight (${unit})`,
+          value: weight, onChange: e => { setWeight(e.target.value); setError(''); }
+        }),
+        React.createElement('select', {
+          value: unit, onChange: e => changeUnit(e.target.value),
+          style: { height: '36px', borderRadius: '8px', border: '0.5px solid #d3d1c7', fontSize: '14px' }
+        },
+          React.createElement('option', { value: 'lb' }, 'lb'),
+          React.createElement('option', { value: 'kg' }, 'kg')
+        )
+      ),
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        React.createElement('span', { style: { fontSize: '13px', color: '#c0392b' } }, error || ''),
+        React.createElement('button', { className: 'primary', onClick: handleSubmit, disabled: saving }, saving ? 'Saving…' : 'Log weight')
+      )
+    ),
+
+    // Delta message
+    last && React.createElement('div', { className: 'card', style: { background: '#F1EFE8' } },
+      React.createElement('p', { style: { margin: 0, fontSize: '15px', fontWeight: 500 } },
+        `Latest: ${last.weight} ${unit} on ${last.date}`
+      ),
+      deltaMsg && React.createElement('p', { style: { margin: '4px 0 0', fontSize: '14px', color: '#5f5e5a' } }, deltaMsg)
+    ),
+
+    // Chart
+    sorted.length >= 2 && React.createElement('div', { className: 'card', style: { height: '260px' } },
+      React.createElement(ResponsiveContainer, { width: '100%', height: '100%' },
+        React.createElement(LineChart, { data: sorted, margin: { top: 10, right: 10, left: -10, bottom: 0 } },
+          React.createElement(CartesianGrid, { strokeDasharray: '3 3', stroke: '#e5e5e0' }),
+          React.createElement(XAxis, { dataKey: 'date', tick: { fontSize: 11 } }),
+          React.createElement(YAxis, { domain: ['auto', 'auto'], tick: { fontSize: 11 } }),
+          React.createElement(Tooltip, {}),
+          React.createElement(Line, { type: 'monotone', dataKey: 'weight', stroke: '#26215C', strokeWidth: 2, dot: { r: 3 } })
+        )
+      )
+    ),
+
+    sorted.length === 0 && React.createElement('p', { style: { textAlign: 'center', color: '#888', fontSize: '14px' } }, 'No entries yet — log your first weight above.')
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>

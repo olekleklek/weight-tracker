@@ -1,0 +1,182 @@
+<div style="display:flex;flex-direction:column;gap:1rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;">Weight tracker: log your weight and see gain or loss versus your last entry, plus a trend chart.</h2>
+
+  <div class="card" style="background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+      <input type="date" id="wt-date" style="height:36px;border:0.5px solid var(--border-strong);border-radius:8px;padding:0 10px;font-size:14px;">
+      <input type="number" id="wt-weight" step="0.1" placeholder="Weight" style="flex:1;min-width:100px;height:36px;border:0.5px solid var(--border-strong);border-radius:8px;padding:0 10px;font-size:15px;">
+      <select id="wt-unit" style="height:36px;border-radius:8px;border:0.5px solid var(--border-strong);font-size:14px;">
+        <option value="lb">lb</option>
+        <option value="kg">kg</option>
+      </select>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span id="wt-error" style="font-size:13px;color:var(--text-danger);"></span>
+      <button id="wt-submit" style="height:36px;border:none;border-radius:8px;background:#26215C;color:#fff;padding:0 16px;font-size:14px;cursor:pointer;">Log weight</button>
+    </div>
+  </div>
+
+  <div id="wt-summary" style="display:none;background:var(--surface-1);border-radius:8px;padding:1rem;">
+    <p id="wt-latest" style="margin:0;font-size:15px;font-weight:500;"></p>
+    <p id="wt-delta" style="margin:4px 0 0;font-size:14px;color:var(--text-secondary);"></p>
+  </div>
+
+  <div id="wt-chart-wrap" style="display:none;background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;">
+    <svg id="wt-chart" viewBox="0 0 640 220" style="width:100%;height:220px;" preserveAspectRatio="none"></svg>
+  </div>
+
+  <p id="wt-empty" style="text-align:center;color:var(--text-muted);font-size:14px;">Loading…</p>
+</div>
+
+<script>
+(function() {
+  const dateInput = document.getElementById('wt-date');
+  const weightInput = document.getElementById('wt-weight');
+  const unitSelect = document.getElementById('wt-unit');
+  const errorEl = document.getElementById('wt-error');
+  const submitBtn = document.getElementById('wt-submit');
+  const summaryEl = document.getElementById('wt-summary');
+  const latestEl = document.getElementById('wt-latest');
+  const deltaEl = document.getElementById('wt-delta');
+  const chartWrap = document.getElementById('wt-chart-wrap');
+  const chartSvg = document.getElementById('wt-chart');
+  const emptyEl = document.getElementById('wt-empty');
+
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  dateInput.value = todayStr();
+  dateInput.max = todayStr();
+
+  let entries = [];
+  let unit = 'lb';
+
+  async function load() {
+    try {
+      const res = await window.storage.get('weight-entries');
+      const data = res ? JSON.parse(res.value) : { entries: [], unit: 'lb' };
+      entries = data.entries || [];
+      unit = data.unit || 'lb';
+    } catch (e) {
+      entries = [];
+      unit = 'lb';
+    }
+    unitSelect.value = unit;
+    render();
+  }
+
+  async function save() {
+    try {
+      await window.storage.set('weight-entries', JSON.stringify({ entries, unit }));
+    } catch (e) {
+      errorEl.textContent = 'Could not save. Try again.';
+    }
+  }
+
+  function sortedEntries() {
+    return [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function drawChart(sorted) {
+    if (sorted.length < 2) {
+      chartWrap.style.display = 'none';
+      return;
+    }
+    chartWrap.style.display = 'block';
+    const weights = sorted.map(e => e.weight);
+    const min = Math.min(...weights), max = Math.max(...weights);
+    const pad = (max - min) * 0.15 || 1;
+    const yMin = min - pad, yMax = max + pad;
+    const W = 640, H = 220, L = 40, R = 10, T = 15, B = 30;
+    const plotW = W - L - R, plotH = H - T - B;
+
+    const x = i => L + (sorted.length === 1 ? plotW / 2 : (i / (sorted.length - 1)) * plotW);
+    const y = v => T + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+    let svg = '';
+    // gridlines
+    for (let i = 0; i <= 3; i++) {
+      const gy = T + (plotH / 3) * i;
+      svg += `<line x1="${L}" y1="${gy}" x2="${W-R}" y2="${gy}" stroke="var(--border)" stroke-width="0.5"/>`;
+    }
+    // y labels
+    svg += `<text x="2" y="${y(yMax)+4}" font-size="10" fill="var(--text-muted)">${yMax.toFixed(1)}</text>`;
+    svg += `<text x="2" y="${y(yMin)+4}" font-size="10" fill="var(--text-muted)">${yMin.toFixed(1)}</text>`;
+    // line
+    const points = sorted.map((e, i) => `${x(i)},${y(e.weight)}`).join(' ');
+    svg += `<polyline points="${points}" fill="none" stroke="#26215C" stroke-width="2"/>`;
+    // dots
+    sorted.forEach((e, i) => {
+      svg += `<circle cx="${x(i)}" cy="${y(e.weight)}" r="3" fill="#26215C"/>`;
+    });
+    // x labels (first, mid, last)
+    const idxs = sorted.length > 6 ? [0, Math.floor(sorted.length/2), sorted.length-1] : sorted.map((_,i)=>i);
+    idxs.forEach(i => {
+      svg += `<text x="${x(i)}" y="${H-8}" font-size="10" fill="var(--text-muted)" text-anchor="middle">${sorted[i].date.slice(5)}</text>`;
+    });
+
+    chartSvg.innerHTML = svg;
+  }
+
+  function render() {
+    const sorted = sortedEntries();
+    const last = sorted[sorted.length - 1];
+
+    if (!last) {
+      emptyEl.style.display = 'block';
+      summaryEl.style.display = 'none';
+      chartWrap.style.display = 'none';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    summaryEl.style.display = 'block';
+    latestEl.textContent = `Latest: ${last.weight} ${unit} on ${last.date}`;
+
+    if (sorted.length >= 2) {
+      const prev = sorted[sorted.length - 2];
+      const diff = +(last.weight - prev.weight).toFixed(1);
+      const days = Math.round((new Date(last.date) - new Date(prev.date)) / 86400000);
+      const dayLabel = days + (days === 1 ? ' day' : ' days');
+      if (diff === 0) {
+        deltaEl.textContent = `No change since ${prev.date} (${dayLabel} ago).`;
+      } else {
+        const dir = diff > 0 ? 'gained' : 'lost';
+        deltaEl.textContent = `You've ${dir} ${Math.abs(diff)} ${unit} since ${prev.date} (${dayLabel} ago).`;
+      }
+    } else {
+      deltaEl.textContent = 'Log another entry to see your trend.';
+    }
+
+    drawChart(sorted);
+  }
+
+  submitBtn.addEventListener('click', async () => {
+    errorEl.textContent = '';
+    const val = parseFloat(weightInput.value);
+    if (!weightInput.value || isNaN(val) || val <= 0) {
+      errorEl.textContent = 'Enter a valid weight first';
+      return;
+    }
+    const date = dateInput.value || todayStr();
+    entries = entries.filter(e => e.date !== date);
+    entries.push({ date, weight: val });
+    unit = unitSelect.value;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+    await save();
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Log weight';
+    weightInput.value = '';
+    render();
+  });
+
+  unitSelect.addEventListener('change', async () => {
+    unit = unitSelect.value;
+    await save();
+    render();
+  });
+
+  load();
+})();
+</script>
