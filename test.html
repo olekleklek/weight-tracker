@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Logic tests</title></head>
+<body>
+<pre id="out">running…</pre>
+<script src="logic.js"></script>
+<script>
+  const fails = [];
+  const eq = (name, got, want) => {
+    const g = JSON.stringify(got), w = JSON.stringify(want);
+    if (g !== w) fails.push(`${name}: got ${g}, want ${w}`);
+  };
+
+  // ymd
+  eq('ymd', ymd(new Date(2026, 9, 9)), '2026-10-09');
+
+  // sortEntries
+  const a = [{ date: '2026-10-11', weight: 98 }, { date: '2026-10-09', weight: 98.8 }];
+  eq('sortEntries order', sortEntries(a).map(e => e.date), ['2026-10-09', '2026-10-11']);
+  eq('sortEntries no mutate', a[0].date, '2026-10-11');
+
+  // changeMap (float noise: Review Focus 4)
+  eq('changeMap', changeMap([
+    { date: '2026-10-09', weight: 98.8 },
+    { date: '2026-10-10', weight: 98.7 },
+    { date: '2026-10-11', weight: 99.0 },
+    { date: '2026-10-12', weight: 99.0 }
+  ]), { '2026-10-09': null, '2026-10-10': -0.1, '2026-10-11': 0.3, '2026-10-12': 0 });
+
+  // upsert
+  eq('upsert append', upsert([SEED], '2026-10-10', 98.5).length, 2);
+  eq('upsert replace', upsert([SEED], '2026-10-09', 97), [{ date: '2026-10-09', weight: 97 }]);
+
+  // parseEntries (Review Focus 3)
+  eq('parseEntries null', parseEntries(null), []);
+  eq('parseEntries corrupt', parseEntries('{not json'), []);
+  eq('parseEntries foreign', parseEntries('{"foo":1}'), []);
+  eq('parseEntries drops bad', parseEntries(JSON.stringify({ entries: [
+    { date: '2026-10-09', weight: 98.8 }, { date: 'x', weight: 1 }, { date: '2026-10-10', weight: '9' }, null
+  ] })), [{ date: '2026-10-09', weight: 98.8 }]);
+
+  // parseWeight (Review Focus 1)
+  eq('parseWeight dot', parseWeight('98.8'), 98.8);
+  eq('parseWeight comma', parseWeight('98,8'), 98.8);
+  eq('parseWeight spaces', parseWeight(' 98.8 '), 98.8);
+  eq('parseWeight rounds', parseWeight('98.84'), 98.8);
+  eq('parseWeight empty', parseWeight(''), null);
+  eq('parseWeight zero', parseWeight('0'), null);
+  eq('parseWeight neg', parseWeight('-5'), null);
+  eq('parseWeight text', parseWeight('abc'), null);
+  eq('parseWeight huge', parseWeight('1000'), null);
+
+  // validateEntry (Review Focus 2)
+  eq('validate ok', validateEntry('2026-10-09', '98,8', '2026-10-09'), { date: '2026-10-09', weight: 98.8 });
+  eq('validate empty date → today', validateEntry('', '98', '2026-10-09'), { date: '2026-10-09', weight: 98 });
+  eq('validate future', validateEntry('2026-10-10', '98', '2026-10-09'), { error: "Date can't be in the future" });
+  eq('validate bad weight', validateEntry('2026-10-09', '', '2026-10-09'), { error: 'Enter a valid weight first' });
+
+  // seedIfNeeded (Review Focus 5)
+  eq('seed fresh', seedIfNeeded([], false), { entries: [SEED], seeded: true });
+  eq('seed already seeded', seedIfNeeded([], true), { entries: [], seeded: true });
+  eq('seed has data', seedIfNeeded([{ date: '2026-10-01', weight: 99 }], false),
+     { entries: [{ date: '2026-10-01', weight: 99 }], seeded: true });
+
+  // nextLogDate
+  eq('next normal', nextLogDate('2026-10-08', '2026-10-09'), '2026-10-09');
+  eq('next capped', nextLogDate('2026-10-09', '2026-10-09'), '2026-10-09');
+  eq('next month end', nextLogDate('2026-09-30', '2026-12-01'), '2026-10-01');
+
+  document.getElementById('out').textContent =
+    fails.length ? 'FAIL\n' + fails.join('\n') : 'ALL PASS';
+</script>
+</body>
+</html>

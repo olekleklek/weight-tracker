@@ -1,2 +1,4 @@
 .claude/
 node_modules/
+.superpowers/
+.playwright-mcp/
