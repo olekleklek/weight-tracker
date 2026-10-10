@@ -61,7 +61,9 @@
   .today { margin: 0 0 12px; font-size: 15px; font-weight: 500; color: var(--text-secondary); }
   #wt-today { color: var(--loss); } /* same green as weight lost in the Change column */
   .streak { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--gain); }
+  .done { margin-top: 12px; }
   .done p { margin: 0; font-size: 14px; }
+  .weight input:disabled, #wt-submit:disabled { opacity: 0.45; cursor: not-allowed; }
   #wt-done-weight { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
   .congrats {
     position: fixed; z-index: 12; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -253,18 +255,16 @@
 <section id="wt-edit" class="sheet" role="dialog" aria-modal="true" aria-labelledby="wt-edit-title" hidden>
   <h2 id="wt-edit-title">Edit entry</h2>
   <p id="wt-edit-date" class="today"></p>
-  <form id="wt-edit-form" class="field" novalidate>
+  <form id="wt-edit-form" class="row" novalidate>
     <div class="weight">
       <label class="sr-only" for="wt-edit-weight">Weight in kg</label>
       <input type="text" id="wt-edit-weight" inputmode="decimal" autocomplete="off"><span>kg</span>
     </div>
-    <p id="wt-edit-error" class="error" role="alert"></p>
-    <div class="row">
-      <button type="submit" class="btn grow">Save</button>
-      <button type="button" id="wt-delete" class="btn btn-danger grow">Delete</button>
-      <button type="button" class="btn btn-secondary grow" data-close>Cancel</button>
-    </div>
+    <button type="submit" class="btn">Save</button>
   </form>
+  <p id="wt-edit-error" class="error" role="alert"></p>
+  <button type="button" id="wt-delete" class="btn btn-danger btn-wide">Delete entry</button>
+  <button type="button" class="btn btn-secondary btn-wide" data-close>Cancel</button>
 </section>
 
 <script src="logic.js"></script>
@@ -417,13 +417,13 @@
     const { days, saves } = streakInfo(entries, now);
     streakEl.hidden = days === 0;
     streakEl.textContent = `🔥 ${days}-day streak` + (saves < STREAK_SAVES ? ` · ${saves} save${saves === 1 ? '' : 's'} left` : '');
-    // Once a day: after today's entry the form is replaced by a "done" note until tomorrow.
+    // Once a day: after today's entry the input and LOG stay visible but disabled until tomorrow.
     const todays = entries.find(e => e.date === now);
-    form.hidden = !!todays;
+    weightInput.disabled = submitBtn.disabled = !!todays;
     doneEl.hidden = !todays;
     if (todays) { doneWeight.textContent = `✅ Logged today: ${todays.weight.toFixed(1)} kg`; errorEl.textContent = ''; }
   }
-  const doneEl = $('wt-done'), doneWeight = $('wt-done-weight');
+  const doneEl = $('wt-done'), doneWeight = $('wt-done-weight'), submitBtn = $('wt-submit');
 
   // Congrats pop-up: stays until "Nice!" is tapped (or Enter/Escape); tapping outside does nothing.
   const congratsEl = $('wt-congrats'), congratsMsg = $('wt-congrats-msg'), congratsStreak = $('wt-congrats-streak');
