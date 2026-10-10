@@ -59,6 +59,16 @@
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
   .today { margin: 0 0 12px; font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+  #wt-today { color: var(--loss); } /* same green as weight lost in the Change column */
+  .streak { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--gain); }
+  .congrats {
+    position: fixed; z-index: 12; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(340px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px;
+    padding: 24px 20px 20px; border-radius: 16px; text-align: center;
+    background: var(--surface-1); box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
+  }
+  .congrats p { margin: 0; }
+  #wt-congrats-msg { font-size: 18px; font-weight: 600; line-height: 1.35; }
   .entry { display: flex; gap: 8px; align-items: center; }
   .weight { flex: 1; position: relative; }
   .weight input {
@@ -151,6 +161,7 @@
   <p id="wt-storage" class="warn" role="alert" hidden>Not saved — storage is unavailable on this device.</p>
 
   <section class="card">
+    <p id="wt-streak" class="streak" hidden></p>
     <p id="wt-today" class="today"></p>
     <form id="wt-form" class="entry" novalidate>
       <div class="weight">
@@ -196,6 +207,12 @@
 </main>
 
 <div id="wt-backdrop" class="backdrop" hidden></div>
+
+<div id="wt-congrats" class="congrats" role="alertdialog" aria-modal="true" aria-labelledby="wt-congrats-msg" hidden>
+  <p id="wt-congrats-msg"></p>
+  <p id="wt-congrats-streak" class="streak" hidden></p>
+  <button type="button" id="wt-congrats-ok" class="btn btn-wide">Nice!</button>
+</div>
 
 <section id="wt-settings" class="sheet" role="dialog" aria-modal="true" aria-labelledby="wt-settings-title" hidden>
   <h2 id="wt-settings-title">Settings</h2>
@@ -329,6 +346,7 @@
   }
 
   function render() {
+    showToday(); // date label + streak badge
     const sorted = sortEntries(entries);
     const last = sorted[sorted.length - 1];
     emptyEl.hidden = !!last;
@@ -368,11 +386,15 @@
       errorEl.textContent = result.error;
       return;
     }
+    const newDay = !entries.some(e => e.date === result.date); // re-logging today doesn't repeat a milestone
     entries = upsert(entries, result.date, result.weight);
     save();
     weightInput.value = '';
-    showToday();
     render();
+    const sorted = sortEntries(entries);
+    const prev = sorted[sorted.findIndex(e => e.date === result.date) - 1];
+    const days = streak(entries, today());
+    showCongrats(logMessage(result.weight, prev ? prev.weight : null, newDay ? days : 0), days);
   });
 
   sortBtn.addEventListener('click', () => {
@@ -381,7 +403,32 @@
   });
 
   // iPhone home-screen apps resume without reloading, so refresh the label when shown again.
-  function showToday() { todayEl.textContent = `Today · ${fmtDate(today())}`; }
+  function showToday() {
+    todayEl.textContent = `Today · ${fmtDate(today())}`;
+    const days = streak(entries, today());
+    streakEl.hidden = days === 0;
+    streakEl.textContent = `🔥 ${days}-day streak`;
+  }
+
+  // Congrats pop-up: stays until "Nice!" is tapped (or Enter/Escape); tapping outside does nothing.
+  const congratsEl = $('wt-congrats'), congratsMsg = $('wt-congrats-msg'), congratsStreak = $('wt-congrats-streak');
+  const congratsOk = $('wt-congrats-ok'), streakEl = $('wt-streak');
+  function showCongrats(message, days) {
+    congratsMsg.textContent = message;
+    congratsStreak.hidden = days < 2 || message.includes('-day streak'); // don't repeat a milestone message
+    congratsStreak.textContent = `🔥 ${days}-day streak`;
+    $('wt-backdrop').hidden = false;
+    congratsEl.hidden = false;
+    congratsOk.focus(); // also closes the iPhone keyboard
+  }
+  function hideCongrats() {
+    if (congratsEl.hidden) return;
+    congratsEl.hidden = true;
+    $('wt-backdrop').hidden = true;
+    window.scrollTo(0, 0);
+  }
+  congratsOk.addEventListener('click', hideCongrats);
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') hideCongrats(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) showToday(); });
 
   // Bottom sheets: one open at a time; close with Done/Cancel, the backdrop or Escape.

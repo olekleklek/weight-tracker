@@ -116,3 +116,25 @@ function restorePrompt(currentCount, backup) {
   const range = first === last ? first : `${first} – ${last}`;
   return `Replace your ${count(currentCount)} with ${count(backup.entries.length)}${skipped} from ${range}?`;
 }
+
+// Streak: consecutive days with an entry ending today, or ending yesterday if today isn't logged yet.
+function streak(entries, today) {
+  const dates = new Set(entries.map(e => e.date));
+  const d = new Date(today + 'T00:00:00');
+  if (!dates.has(today)) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (dates.has(ymd(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+
+// Congrats text after a successful log. prevWeight = the entry before this one (null if none).
+function logMessage(weight, prevWeight, streakDays) {
+  if (STREAK_MILESTONES.includes(streakDays)) return `🔥 ${streakDays}-day streak! Keep it up.`;
+  if (prevWeight == null) return '🎉 First entry — great start!';
+  const diff = +(weight - prevWeight).toFixed(1);
+  if (diff < 0) return `🎉 Down ${Math.abs(diff).toFixed(1)} kg — nice work!`;
+  if (diff > 0) return "✅ Logged. One day doesn't define you.";
+  return '✅ Logged. Holding steady!';
+}

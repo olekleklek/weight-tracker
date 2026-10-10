@@ -114,6 +114,22 @@
   eq('restorePrompt single day', restorePrompt(1, { entries: [SEED], skipped: 0 }),
      "Replace your 1 entry with 1 entry from Oct. 9, '26?");
 
+  // streak: consecutive days with an entry, ending today — or yesterday if today isn't logged yet
+  const days = (...ds) => ds.map(date => ({ date, weight: 90 }));
+  eq('streak none', streak([], '2026-10-10'), 0);
+  eq('streak through today', streak(days('2026-10-08', '2026-10-09', '2026-10-10'), '2026-10-10'), 3);
+  eq('streak ends yesterday', streak(days('2026-10-08', '2026-10-09'), '2026-10-10'), 2);
+  eq('streak broken by gap', streak(days('2026-10-07', '2026-10-09', '2026-10-10'), '2026-10-10'), 2);
+  eq('streak missed a full day', streak(days('2026-10-08'), '2026-10-10'), 0);
+  eq('streak across month end', streak(days('2026-09-30', '2026-10-01'), '2026-10-01'), 2);
+
+  // logMessage: congrats text after a successful log
+  eq('msg first entry', logMessage(98.8, null, 1), '🎉 First entry — great start!');
+  eq('msg lost', logMessage(98.4, 98.8, 2), '🎉 Down 0.4 kg — nice work!');
+  eq('msg gained', logMessage(99, 98.8, 2), "✅ Logged. One day doesn't define you.");
+  eq('msg steady', logMessage(98.8, 98.8, 2), '✅ Logged. Holding steady!');
+  eq('msg milestone wins', logMessage(98.4, 98.8, 7), '🔥 7-day streak! Keep it up.');
+
   document.getElementById('out').textContent =
     fails.length ? 'FAIL\n' + fails.join('\n') : 'ALL PASS';
 </script>
