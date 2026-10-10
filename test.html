@@ -108,6 +108,12 @@
      { points: [{ x: 10, y: 81.3, date: '2026-10-01', weight: 80 }, { x: 190, y: 88.3, date: '2026-10-11', weight: 78 }],
        goalY: 11.7, min: 77.5, max: 100.5 });
 
+  // restorePrompt: shows the backup's date range so an old backup can't silently wipe newer entries
+  eq('restorePrompt range + skipped', restorePrompt(12, { entries: [SEED, { date: '2026-11-02', weight: 97 }], skipped: 2 }),
+     "Replace your 12 entries with 2 entries (2 skipped) from Oct. 9, '26 – Nov. 2, '26?");
+  eq('restorePrompt single day', restorePrompt(1, { entries: [SEED], skipped: 0 }),
+     "Replace your 1 entry with 1 entry from Oct. 9, '26?");
+
   document.getElementById('out').textContent =
     fails.length ? 'FAIL\n' + fails.join('\n') : 'ALL PASS';
 </script>

@@ -382,7 +382,11 @@
   const backdrop = $('wt-backdrop');
   let openSheetEl = null;
   function openSheet(el) { closeSheet(); openSheetEl = el; el.hidden = false; backdrop.hidden = false; }
-  function closeSheet() { if (!openSheetEl) return; openSheetEl.hidden = true; backdrop.hidden = true; openSheetEl = null; }
+  function closeSheet() {
+    if (!openSheetEl) return;
+    openSheetEl.hidden = true; backdrop.hidden = true; openSheetEl = null;
+    window.scrollTo(0, 0); // iOS keyboard can leave the page shifted; the layout must never scroll
+  }
   backdrop.addEventListener('click', closeSheet);
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeSheet(); });
   document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeSheet));
@@ -458,7 +462,6 @@
 
   // Backup: iPhone Share sheet with a .json file; download where file sharing isn't supported.
   const dataMsg = $('wt-data-msg'), restoreFile = $('wt-restore-file');
-  const count = n => n + (n === 1 ? ' entry' : ' entries');
   $('wt-backup').addEventListener('click', async () => {
     dataMsg.textContent = '';
     const name = `weight-backup-${today()}.json`;
@@ -483,8 +486,7 @@
     if (!f) return;
     const r = readBackup(await f.text());
     if (r.error) { dataMsg.textContent = r.error; return; }
-    const skipped = r.skipped ? ` (${r.skipped} skipped)` : '';
-    if (!confirm(`Replace your ${count(entries.length)} with ${count(r.entries.length)}${skipped} from this backup?`)) return;
+    if (!confirm(restorePrompt(entries.length, r))) return;
     entries = r.entries;
     save();
     if (r.goal !== null) { goal = r.goal; write(GOAL_KEY, String(goal)); }

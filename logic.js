@@ -107,3 +107,12 @@ function chartPoints(sorted, goal, width, height, pad) {
     min, max
   };
 }
+
+// Restore confirmation names the backup's date range, so restoring an old file can't silently wipe newer entries.
+function restorePrompt(currentCount, backup) {
+  const count = n => n + (n === 1 ? ' entry' : ' entries');
+  const first = fmtDate(backup.entries[0].date), last = fmtDate(backup.entries[backup.entries.length - 1].date);
+  const skipped = backup.skipped ? ` (${backup.skipped} skipped)` : '';
+  const range = first === last ? first : `${first} – ${last}`;
+  return `Replace your ${count(currentCount)} with ${count(backup.entries.length)}${skipped} from ${range}?`;
+}
