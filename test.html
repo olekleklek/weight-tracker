@@ -98,15 +98,32 @@
   eq('removeEntry', removeEntry([SEED, { date: '2026-10-10', weight: 98.4 }], '2026-10-09'), [{ date: '2026-10-10', weight: 98.4 }]);
   eq('removeEntry missing', removeEntry([SEED], '2026-01-01'), [SEED]);
 
-  // chartPoints (200×100, pad 10)
-  eq('chart 2 entries', chartPoints([{ date: '2026-10-01', weight: 80 }, { date: '2026-10-11', weight: 78 }], 75, 200, 100, 10),
-     { points: [{ x: 10, y: 16.7, date: '2026-10-01', weight: 80 }, { x: 190, y: 43.3, date: '2026-10-11', weight: 78 }],
-       goalY: 83.3, min: 74.5, max: 80.5 });
+  // chartRange: zoom to the weights; goal joins the range only if within 1 kg of it
+  eq('range goal far below', chartRange([80, 78], 75), { min: 77.5, max: 80.5, goalInRange: false, goalDir: 'down' });
+  eq('range goal near (in)', chartRange([80, 78], 77), { min: 76.5, max: 80.5, goalInRange: true, goalDir: null });
+  eq('range goal exactly at edge (in)', chartRange([80, 78], 76.5), { min: 76, max: 80.5, goalInRange: true, goalDir: null });
+  eq('range goal above', chartRange([80, 78], 100), { min: 77.5, max: 80.5, goalInRange: false, goalDir: 'up' });
+  eq('range single weight = goal', chartRange([80], 80), { min: 79.5, max: 80.5, goalInRange: true, goalDir: null });
+
+  // chartPoints (200×100, pad 10) uses chartRange; goalY null when the goal is out of range
+  const two = [{ date: '2026-10-01', weight: 80 }, { date: '2026-10-11', weight: 78 }];
+  eq('chart goal far below', chartPoints(two, 75, 200, 100, 10),
+     { points: [{ x: 10, y: 23.3, date: '2026-10-01', weight: 80 }, { x: 190, y: 76.7, date: '2026-10-11', weight: 78 }],
+       goalY: null, min: 77.5, max: 80.5, goalDir: 'down' });
+  eq('chart goal near draws line', chartPoints(two, 77, 200, 100, 10),
+     { points: [{ x: 10, y: 20, date: '2026-10-01', weight: 80 }, { x: 190, y: 60, date: '2026-10-11', weight: 78 }],
+       goalY: 80, min: 76.5, max: 80.5, goalDir: null });
+  eq('chart extra bottom padding', chartPoints(two, 75, 200, 100, 10, 30).points.map(p => p.y), [20, 60]);
   eq('chart 1 entry centred', chartPoints([{ date: '2026-10-01', weight: 80 }], 75, 200, 100, 10).points,
-     [{ x: 100, y: 16.7, date: '2026-10-01', weight: 80 }]);
-  eq('chart goal above weights', chartPoints([{ date: '2026-10-01', weight: 80 }, { date: '2026-10-11', weight: 78 }], 100, 200, 100, 10),
-     { points: [{ x: 10, y: 81.3, date: '2026-10-01', weight: 80 }, { x: 190, y: 88.3, date: '2026-10-11', weight: 78 }],
-       goalY: 11.7, min: 77.5, max: 100.5 });
+     [{ x: 100, y: 50, date: '2026-10-01', weight: 80 }]);
+
+  // kiloMood
+  eq('mood happy', kiloMood({ days: 3, saves: 2 }, false, false), 'happy');
+  eq('mood resting (save used, not logged)', kiloMood({ days: 3, saves: 1 }, false, false), 'resting');
+  eq('mood happy once logged', kiloMood({ days: 3, saves: 1 }, true, false), 'happy');
+  eq('mood cheering after logging today', kiloMood({ days: 3, saves: 2 }, true, true), 'cheering');
+  eq('mood not cheering next day', kiloMood({ days: 4, saves: 2 }, false, false), 'happy');
+  eq('mood no streak', kiloMood({ days: 0, saves: 2 }, false, false), 'happy');
 
   // restorePrompt: shows the backup's date range so an old backup can't silently wipe newer entries
   eq('restorePrompt range + skipped', restorePrompt(12, { entries: [SEED, { date: '2026-11-02', weight: 97 }], skipped: 2 }),

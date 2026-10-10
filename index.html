@@ -154,6 +154,8 @@
   .chart .goal { stroke: var(--loss); stroke-width: 1.5; stroke-dasharray: 6 5; }
   .chart .goal-label { fill: var(--loss); font-size: 12px; }
   .chart .axis { fill: var(--text-muted); font-size: 11px; }
+  .chart .goal-tag { fill: var(--surface-1); stroke: var(--border-strong); stroke-width: 1; }
+  .chart .goal-tag-text { fill: var(--loss); font-size: 11px; font-weight: 600; }
   .seg button[aria-checked="true"] { background: var(--surface-1); font-weight: 600; box-shadow: 0 1px 3px rgb(0 0 0 / 0.18); }
 </style>
 </head>
@@ -581,18 +583,34 @@
     const sorted = sortEntries(entries);
     const w = chartSvg.clientWidth, h = chartSvg.clientHeight, pad = 36;
     if (!sorted.length || !w || !h) return;
-    const c = chartPoints(sorted, goal, w, h, pad);
+    const ws = sorted.map(e => e.weight);
+    const dir = chartRange(ws, goal).goalDir;
+    // Leave room for the goal tag: above the date labels when the goal is below, at the top when above.
+    const padTop = dir === 'up' ? 40 : pad, padBottom = dir === 'down' ? 62 : pad;
+    const c = chartPoints(sorted, goal, w, h, padTop, padBottom);
+    const ys = c.points.map(p => p.y);
+    const hi = Math.max(...ws), lo = Math.min(...ws);
     const first = sorted[0].date, last = sorted[sorted.length - 1].date;
+    let goalSvg;
+    if (c.goalY !== null) {
+      goalSvg = `<line class="goal" x1="${padTop}" x2="${w - padTop}" y1="${c.goalY}" y2="${c.goalY}"/>` +
+        `<text class="goal-label" x="${w - padTop}" y="${c.goalY - 6}" text-anchor="end">Goal ${goal} kg</text>`;
+    } else {
+      const toGo = Math.abs(ws[ws.length - 1] - goal).toFixed(1);
+      const label = `Goal ${goal} kg ${c.goalDir === 'down' ? '↓' : '↑'} · ${toGo} kg to go`;
+      const tw = label.length * 6.2 + 16, ty = c.goalDir === 'down' ? h - 52 : 8;
+      goalSvg = `<rect class="goal-tag" x="${w - 6 - tw}" y="${ty}" width="${tw}" height="20" rx="10"/>` +
+        `<text class="goal-tag-text" x="${w - 6 - tw / 2}" y="${ty + 14}" text-anchor="middle">${label}</text>`;
+    }
     chartSvg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    chartSvg.innerHTML =
-      `<line class="goal" x1="${pad}" x2="${w - pad}" y1="${c.goalY}" y2="${c.goalY}"/>` +
-      `<text class="goal-label" x="${w - pad}" y="${c.goalY - 6}" text-anchor="end">Goal ${goal} kg</text>` +
+    chartSvg.innerHTML = goalSvg +
       (c.points.length > 1 ? `<polyline class="line" points="${c.points.map(p => `${p.x},${p.y}`).join(' ')}"/>` : '') +
       c.points.map(p => `<circle class="dot" cx="${p.x}" cy="${p.y}" r="3.5"/>`).join('') +
-      `<text class="axis" x="2" y="${pad}" dominant-baseline="middle">${c.max.toFixed(1)}</text>` +
-      `<text class="axis" x="2" y="${h - pad}" dominant-baseline="middle">${c.min.toFixed(1)}</text>` +
-      `<text class="axis" x="${pad}" y="${h - 8}">${fmtDate(first)}</text>` +
-      (first !== last ? `<text class="axis" x="${w - pad}" y="${h - 8}" text-anchor="end">${fmtDate(last)}</text>` : '');
+      // y labels: the real highest and lowest logged weights, at their own heights
+      `<text class="axis" x="2" y="${Math.min(...ys)}" dominant-baseline="middle">${hi.toFixed(1)}</text>` +
+      (hi !== lo ? `<text class="axis" x="2" y="${Math.max(...ys)}" dominant-baseline="middle">${lo.toFixed(1)}</text>` : '') +
+      `<text class="axis" x="${padTop}" y="${h - 8}">${fmtDate(first)}</text>` +
+      (first !== last ? `<text class="axis" x="${w - padTop}" y="${h - 8}" text-anchor="end">${fmtDate(last)}</text>` : '');
     chartNote.hidden = sorted.length > 1;
   }
   window.addEventListener('resize', drawChart);

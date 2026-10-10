@@ -93,19 +93,38 @@ function removeEntry(entries, date) {
   return entries.filter(e => e.date !== date);
 }
 
-// Chart geometry: x proportional to date, y range = weights + goal padded by 0.5 kg.
-function chartPoints(sorted, goal, width, height, pad) {
+// Zoom the chart to the logged weights (±0.5 kg). The goal joins the range only when it is
+// within 1 kg of it; otherwise the UI shows a "Goal … ↓/↑" tag at the edge instead of a line.
+function chartRange(weights, goal) {
+  const min = Math.min(...weights) - 0.5, max = Math.max(...weights) + 0.5;
+  if (goal == null) return { min, max, goalInRange: false, goalDir: null };
+  if (goal >= min - 1 && goal <= max + 1) {
+    return { min: Math.min(min, goal - 0.5), max: Math.max(max, goal + 0.5), goalInRange: true, goalDir: null };
+  }
+  return { min, max, goalInRange: false, goalDir: goal < min ? 'down' : 'up' };
+}
+
+// Chart geometry: x proportional to date; y over chartRange. `pad` = top and sides, `padBottom` = bottom.
+function chartPoints(sorted, goal, width, height, pad, padBottom = pad) {
   const r = v => Math.round(v * 10) / 10;
-  const ws = sorted.map(e => e.weight).concat(goal == null ? [] : [goal]);
-  const min = Math.min(...ws) - 0.5, max = Math.max(...ws) + 0.5;
+  const range = chartRange(sorted.map(e => e.weight), goal);
+  const { min, max } = range;
   const t0 = Date.parse(sorted[0].date), t1 = Date.parse(sorted[sorted.length - 1].date);
   const x = t => t1 === t0 ? width / 2 : pad + (t - t0) / (t1 - t0) * (width - 2 * pad);
-  const y = w => pad + (max - w) / (max - min) * (height - 2 * pad);
+  const y = w => pad + (max - w) / (max - min) * (height - pad - padBottom);
   return {
     points: sorted.map(e => ({ x: r(x(Date.parse(e.date))), y: r(y(e.weight)), date: e.date, weight: e.weight })),
-    goalY: goal == null ? null : r(y(goal)),
-    min, max
+    goalY: range.goalInRange ? r(y(goal)) : null,
+    min, max,
+    goalDir: range.goalDir
   };
+}
+
+// Kilo's mood on the main screen.
+function kiloMood(info, loggedToday, cheeredToday) {
+  if (cheeredToday) return 'cheering';
+  if (!loggedToday && info.days > 0 && info.saves < STREAK_SAVES) return 'resting';
+  return 'happy';
 }
 
 // Restore confirmation names the backup's date range, so restoring an old file can't silently wipe newer entries.
