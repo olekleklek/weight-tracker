@@ -82,6 +82,7 @@
   td { background: var(--surface-1); }
   td:nth-child(2) { font-weight: 500; }
   tr.alt td { background: var(--row-alt); }
+  tbody tr { cursor: pointer; }
   .sort { all: unset; cursor: pointer; }
   .gain { color: var(--gain); } .loss { color: var(--loss); } .muted { color: var(--text-muted); }
   .summary { background: var(--surface-1); border-radius: 8px; padding: 1rem; }
@@ -190,6 +191,21 @@
   <button type="button" class="btn btn-wide" data-close>Done</button>
 </section>
 
+<section id="wt-edit" class="sheet" role="dialog" aria-modal="true" aria-labelledby="wt-edit-title" hidden>
+  <h2 id="wt-edit-title">Edit entry</h2>
+  <p id="wt-edit-date" class="today"></p>
+  <form id="wt-edit-form" class="row" novalidate>
+    <div class="weight">
+      <label class="sr-only" for="wt-edit-weight">Weight in kg</label>
+      <input type="text" id="wt-edit-weight" inputmode="decimal" autocomplete="off"><span>kg</span>
+    </div>
+    <button type="submit" class="btn">Save</button>
+  </form>
+  <p id="wt-edit-error" class="error" role="alert"></p>
+  <button type="button" id="wt-delete" class="btn btn-danger btn-wide">Delete entry</button>
+  <button type="button" class="btn btn-secondary btn-wide" data-close>Cancel</button>
+</section>
+
 <script src="logic.js"></script>
 <script>
 (function () {
@@ -271,7 +287,7 @@
       let cell = '<span class="muted">—</span>';
       if (d === 0) cell = '<span class="muted">0.0</span>';
       else if (d !== null) cell = `<span class="${d > 0 ? 'gain' : 'loss'}">${d > 0 ? '+' : ''}${d.toFixed(1)}</span>`;
-      return `<tr${i % 2 ? ' class="alt"' : ''}><td>${fmtDate(e.date)}</td><td>${e.weight.toFixed(1)}</td><td>${cell}</td></tr>`;
+      return `<tr data-date="${e.date}" tabindex="0" role="button" aria-label="Edit ${fmtDate(e.date)}"${i % 2 ? ' class="alt"' : ''}><td>${fmtDate(e.date)}</td><td>${e.weight.toFixed(1)}</td><td>${cell}</td></tr>`;
     }).join('');
     sortArrow.textContent = sortDesc ? '↓' : '↑';
   }
@@ -367,6 +383,47 @@
   }
   themeBtns.forEach(b => b.addEventListener('click', () => { write(THEME_KEY, b.dataset.themeChoice); applyTheme(b.dataset.themeChoice); }));
   applyTheme(read(THEME_KEY) || 'system');
+
+  // Edit / delete: tap a row. The date is fixed; only the weight can change.
+  const editSheet = $('wt-edit'), editDateEl = $('wt-edit-date'), editForm = $('wt-edit-form');
+  const editWeight = $('wt-edit-weight'), editError = $('wt-edit-error');
+  let editDate = null;
+  function openEdit(date) {
+    const e = entries.find(x => x.date === date);
+    if (!e) return;
+    editDate = date;
+    editDateEl.textContent = fmtDate(date);
+    editWeight.value = e.weight.toFixed(1);
+    editError.textContent = '';
+    openSheet(editSheet);
+  }
+  tableBody.addEventListener('click', ev => {
+    const tr = ev.target.closest('tr[data-date]');
+    if (tr) openEdit(tr.dataset.date);
+  });
+  tableBody.addEventListener('keydown', ev => {
+    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches('tr[data-date]')) {
+      ev.preventDefault();
+      openEdit(ev.target.dataset.date);
+    }
+  });
+  editForm.addEventListener('submit', ev => {
+    ev.preventDefault();
+    const w = parseWeight(editWeight.value);
+    if (w === null) { editError.textContent = 'Enter a valid weight first'; return; }
+    entries = upsert(entries, editDate, w);
+    save();
+    closeSheet();
+    render();
+  });
+  $('wt-delete').addEventListener('click', () => {
+    const e = entries.find(x => x.date === editDate);
+    if (!e || !confirm(`Delete ${fmtDate(e.date)} · ${e.weight.toFixed(1)} kg?`)) return;
+    entries = removeEntry(entries, editDate);
+    save();
+    closeSheet();
+    render();
+  });
 
   showToday();
   load();
