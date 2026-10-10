@@ -61,6 +61,8 @@
   .today { margin: 0 0 12px; font-size: 15px; font-weight: 500; color: var(--text-secondary); }
   #wt-today { color: var(--loss); } /* same green as weight lost in the Change column */
   .streak { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--gain); }
+  .done p { margin: 0; font-size: 14px; }
+  #wt-done-weight { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
   .congrats {
     position: fixed; z-index: 12; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: min(340px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px;
@@ -172,6 +174,10 @@
       <button id="wt-submit" type="submit">LOG</button>
     </form>
     <p id="wt-error" class="error" role="alert"></p>
+    <div id="wt-done" class="done" hidden>
+      <p id="wt-done-weight"></p>
+      <p class="muted">Tap it in the table to edit.</p>
+    </div>
   </section>
 
   <div id="wt-history" class="history" hidden>
@@ -247,16 +253,18 @@
 <section id="wt-edit" class="sheet" role="dialog" aria-modal="true" aria-labelledby="wt-edit-title" hidden>
   <h2 id="wt-edit-title">Edit entry</h2>
   <p id="wt-edit-date" class="today"></p>
-  <form id="wt-edit-form" class="row" novalidate>
+  <form id="wt-edit-form" class="field" novalidate>
     <div class="weight">
       <label class="sr-only" for="wt-edit-weight">Weight in kg</label>
       <input type="text" id="wt-edit-weight" inputmode="decimal" autocomplete="off"><span>kg</span>
     </div>
-    <button type="submit" class="btn">Save</button>
+    <p id="wt-edit-error" class="error" role="alert"></p>
+    <div class="row">
+      <button type="submit" class="btn grow">Save</button>
+      <button type="button" id="wt-delete" class="btn btn-danger grow">Delete</button>
+      <button type="button" class="btn btn-secondary grow" data-close>Cancel</button>
+    </div>
   </form>
-  <p id="wt-edit-error" class="error" role="alert"></p>
-  <button type="button" id="wt-delete" class="btn btn-danger btn-wide">Delete entry</button>
-  <button type="button" class="btn btn-secondary btn-wide" data-close>Cancel</button>
 </section>
 
 <script src="logic.js"></script>
@@ -386,7 +394,7 @@
       errorEl.textContent = result.error;
       return;
     }
-    const newDay = !entries.some(e => e.date === result.date); // re-logging today doesn't repeat a milestone
+    if (entries.some(e => e.date === result.date)) return; // once a day; edit via the table
     entries = upsert(entries, result.date, result.weight);
     save();
     weightInput.value = '';
@@ -394,7 +402,7 @@
     const sorted = sortEntries(entries);
     const prev = sorted[sorted.findIndex(e => e.date === result.date) - 1];
     const days = streak(entries, today());
-    showCongrats(logMessage(result.weight, prev ? prev.weight : null, newDay ? days : 0), days);
+    showCongrats(logMessage(result.weight, prev ? prev.weight : null, days), days);
   });
 
   sortBtn.addEventListener('click', () => {
@@ -404,11 +412,18 @@
 
   // iPhone home-screen apps resume without reloading, so refresh the label when shown again.
   function showToday() {
-    todayEl.textContent = `Today · ${fmtDate(today())}`;
-    const days = streak(entries, today());
+    const now = today();
+    todayEl.textContent = `Today · ${fmtDate(now)}`;
+    const { days, saves } = streakInfo(entries, now);
     streakEl.hidden = days === 0;
-    streakEl.textContent = `🔥 ${days}-day streak`;
+    streakEl.textContent = `🔥 ${days}-day streak` + (saves < STREAK_SAVES ? ` · ${saves} save${saves === 1 ? '' : 's'} left` : '');
+    // Once a day: after today's entry the form is replaced by a "done" note until tomorrow.
+    const todays = entries.find(e => e.date === now);
+    form.hidden = !!todays;
+    doneEl.hidden = !todays;
+    if (todays) { doneWeight.textContent = `✅ Logged today: ${todays.weight.toFixed(1)} kg`; errorEl.textContent = ''; }
   }
+  const doneEl = $('wt-done'), doneWeight = $('wt-done-weight');
 
   // Congrats pop-up: stays until "Nice!" is tapped (or Enter/Escape); tapping outside does nothing.
   const congratsEl = $('wt-congrats'), congratsMsg = $('wt-congrats-msg'), congratsStreak = $('wt-congrats-streak');
@@ -429,7 +444,7 @@
   }
   congratsOk.addEventListener('click', hideCongrats);
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape') hideCongrats(); });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) showToday(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 
   // Bottom sheets: one open at a time; close with Done/Cancel, the backdrop or Escape.
   const backdrop = $('wt-backdrop');

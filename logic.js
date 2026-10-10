@@ -117,14 +117,27 @@ function restorePrompt(currentCount, backup) {
   return `Replace your ${count(currentCount)} with ${count(backup.entries.length)}${skipped} from ${range}?`;
 }
 
-// Streak: consecutive days with an entry ending today, or ending yesterday if today isn't logged yet.
-function streak(entries, today) {
+// Streak with 2 saves: walk every day from the first entry up to today (or yesterday if today
+// isn't logged yet). A logged day adds 1; a missed day uses a save; a miss with no saves left
+// resets the streak, and the new streak starts with 2 saves again.
+const STREAK_SAVES = 2;
+function streakInfo(entries, today) {
+  let days = 0, saves = STREAK_SAVES;
+  if (!entries.length) return { days, saves };
   const dates = new Set(entries.map(e => e.date));
-  const d = new Date(today + 'T00:00:00');
-  if (!dates.has(today)) d.setDate(d.getDate() - 1);
-  let n = 0;
-  while (dates.has(ymd(d))) { n++; d.setDate(d.getDate() - 1); }
-  return n;
+  const end = new Date(today + 'T00:00:00');
+  if (!dates.has(today)) end.setDate(end.getDate() - 1);
+  const d = new Date(sortEntries(entries)[0].date + 'T00:00:00');
+  for (; d <= end; d.setDate(d.getDate() + 1)) {
+    if (dates.has(ymd(d))) days++;
+    else if (days > 0 && saves > 0) saves--;
+    else { days = 0; saves = STREAK_SAVES; }
+  }
+  return { days, saves };
+}
+
+function streak(entries, today) {
+  return streakInfo(entries, today).days;
 }
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];

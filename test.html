@@ -119,9 +119,16 @@
   eq('streak none', streak([], '2026-10-10'), 0);
   eq('streak through today', streak(days('2026-10-08', '2026-10-09', '2026-10-10'), '2026-10-10'), 3);
   eq('streak ends yesterday', streak(days('2026-10-08', '2026-10-09'), '2026-10-10'), 2);
-  eq('streak broken by gap', streak(days('2026-10-07', '2026-10-09', '2026-10-10'), '2026-10-10'), 2);
-  eq('streak missed a full day', streak(days('2026-10-08'), '2026-10-10'), 0);
   eq('streak across month end', streak(days('2026-09-30', '2026-10-01'), '2026-10-01'), 2);
+
+  // streakInfo: 2 saves per streak; each missed day uses one; a miss with none left resets (new streak gets 2)
+  eq('saves: none used', streakInfo(days('2026-10-09', '2026-10-10'), '2026-10-10'), { days: 2, saves: 2 });
+  eq('saves: today not logged yet is not a miss', streakInfo(days('2026-10-09'), '2026-10-10'), { days: 1, saves: 2 });
+  eq('saves: one gap uses one save', streakInfo(days('2026-10-07', '2026-10-09', '2026-10-10'), '2026-10-10'), { days: 3, saves: 1 });
+  eq('saves: missed yesterday uses one', streakInfo(days('2026-10-08'), '2026-10-10'), { days: 1, saves: 1 });
+  eq('saves: 3 misses in a row resets', streakInfo(days('2026-10-01'), '2026-10-05'), { days: 0, saves: 2 });
+  eq('saves: do not refill within a streak', streakInfo(days('2026-10-01', '2026-10-03', '2026-10-05', '2026-10-07'), '2026-10-07'), { days: 1, saves: 2 });
+  eq('saves: empty', streakInfo([], '2026-10-10'), { days: 0, saves: 2 });
 
   // logMessage: congrats text after a successful log
   eq('msg first entry', logMessage(98.8, null, 1), '🎉 First entry — great start!');
