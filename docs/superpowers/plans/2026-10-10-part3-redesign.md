@@ -337,9 +337,14 @@ Expected: a `fonts.gstatic.com/...woff2` URL and a file of roughly 20–80 KB. I
     position: relative; flex: 1; margin: 0 0 26px; padding: 9px 12px; border-radius: 14px;
     background: var(--surface-2); color: var(--quote); font-size: 14px; font-style: italic; line-height: 1.35;
   }
+  /* smooth curved tail (iMessage style) sweeping toward Kilo; it stops short of his head */
+  .bubble::before {
+    content: ''; position: absolute; right: -7px; bottom: 0; width: 20px; height: 18px;
+    background: var(--surface-2); border-bottom-left-radius: 16px 14px;
+  }
   .bubble::after {
-    content: ''; position: absolute; right: -9px; bottom: 8px;
-    border-style: solid; border-width: 6px 0 6px 10px; border-color: transparent transparent transparent var(--surface-2);
+    content: ''; position: absolute; right: -10px; bottom: 0; width: 10px; height: 18px;
+    background: var(--surface-1); border-bottom-left-radius: 10px;
   }
   .kilo { width: 62px; height: auto; flex-shrink: 0; overflow: visible; filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.12)); }
   #wt-empty { text-align: center; color: var(--text-muted); font-size: 14px; }
@@ -558,7 +563,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 5: Run the checks to verify they pass** (390×844, light, then dark)
   1. Seed `[{date:'2026-10-08',weight:98.8},{date:'2026-10-09',weight:98.6}]` and reload. Check `() => [document.getElementById('wt-kilo-use').getAttribute('href'), document.getElementById('wt-kilo-z').hasAttribute('hidden'), document.getElementById('wt-streak-text').textContent]` → `["#kilo-happy", true, "2-day streak"]`
-  2. Bubble gap: `() => { const b = document.getElementById('wt-quote').getBoundingClientRect(), k = document.getElementById('wt-kilo').getBoundingClientRect(); return Math.round(k.left - (b.right + 9)); }` → a value **≥ 0** (the tail ends before Kilo's box).
+  2. Bubble gap: `() => { const b = document.getElementById('wt-quote').getBoundingClientRect(), k = document.getElementById('wt-kilo').getBoundingClientRect(); return Math.round(k.left - (b.right + 10)); }` → a value **≥ 0** (the curved tail, which reaches 10px past the bubble, ends before Kilo's box).
   3. Resting: seed `[{date:'2026-10-06',weight:99},{date:'2026-10-07',weight:98.9},{date:'2026-10-08',weight:98.8}]` (Oct. 9 missed, today not logged) and reload. Expect `["#kilo-resting", false, "3-day streak · 1 save left"]`.
   4. Badge wrap (Review Focus 4): in that state, `() => { const t = document.getElementById('wt-today'), s = document.getElementById('wt-streak'); return [t.scrollWidth <= t.clientWidth, t.getBoundingClientRect().height < 26, s.getBoundingClientRect().right <= document.querySelector('.card').getBoundingClientRect().right]; }` → `[true, true, true]`
   5. Log and pop-up: type `98.6` and submit. Check `() => [!document.getElementById('wt-congrats').hidden, document.querySelector('.kilo-pop').getBoundingClientRect().left + document.querySelector('.kilo-pop').getBoundingClientRect().width / 2 - innerWidth / 2]` → `[true, ≈0]`, meaning Kilo's centre is within ±2px of the screen centre. Click "Nice!" and expect `#wt-kilo-use` href = `#kilo-cheering`.
