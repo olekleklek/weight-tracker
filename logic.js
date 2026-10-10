@@ -96,9 +96,10 @@ function removeEntry(entries, date) {
 // Zoom the chart to the logged weights (±0.5 kg). The goal joins the range only when it is
 // within 1 kg of it; otherwise the UI shows a "Goal … ↓/↑" tag at the edge instead of a line.
 function chartRange(weights, goal) {
-  const min = Math.min(...weights) - 0.5, max = Math.max(...weights) + 0.5;
+  const r = v => Math.round(v * 10) / 10; // weights are 0.1 kg steps; rounding avoids float noise at the edges
+  const min = r(Math.min(...weights) - 0.5), max = r(Math.max(...weights) + 0.5);
   if (goal == null) return { min, max, goalInRange: false, goalDir: null };
-  if (goal >= min - 1 && goal <= max + 1) {
+  if (goal >= r(min - 1) && goal <= r(max + 1)) {
     return { min: Math.min(min, goal - 0.5), max: Math.max(max, goal + 0.5), goalInRange: true, goalDir: null };
   }
   return { min, max, goalInRange: false, goalDir: goal < min ? 'down' : 'up' };
@@ -122,7 +123,7 @@ function chartPoints(sorted, goal, width, height, pad, padBottom = pad) {
 
 // Kilo's mood on the main screen.
 function kiloMood(info, loggedToday, cheeredToday) {
-  if (cheeredToday) return 'cheering';
+  if (cheeredToday && loggedToday) return 'cheering'; // stops cheering if today's entry is deleted
   if (!loggedToday && info.days > 0 && info.saves < STREAK_SAVES) return 'resting';
   return 'happy';
 }

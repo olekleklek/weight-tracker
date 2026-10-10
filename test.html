@@ -124,6 +124,11 @@
   eq('mood cheering after logging today', kiloMood({ days: 3, saves: 2 }, true, true), 'cheering');
   eq('mood not cheering next day', kiloMood({ days: 4, saves: 2 }, false, false), 'happy');
   eq('mood no streak', kiloMood({ days: 0, saves: 2 }, false, false), 'happy');
+  // final review: today's entry deleted after cheering → not cheering any more
+  eq('mood cheer ends when today deleted', kiloMood({ days: 3, saves: 2 }, false, true), 'happy');
+  // final review: float noise at the 1 kg edge (64.4 − 0.5 − 1 ≠ 62.9 in floats)
+  eq('range edge with float noise (in)', chartRange([64.4], 62.9).goalInRange, true);
+  eq('range edge with float noise 2 (in)', chartRange([128.3], 126.8).goalInRange, true);
 
   // restorePrompt: shows the backup's date range so an old backup can't silently wipe newer entries
   eq('restorePrompt range + skipped', restorePrompt(12, { entries: [SEED, { date: '2026-11-02', weight: 97 }], skipped: 2 }),
