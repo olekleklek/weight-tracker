@@ -41,7 +41,7 @@
 
   // parseWeight (Review Focus 1)
   eq('parseWeight dot', parseWeight('98.8'), 98.8);
-  eq('parseWeight comma', parseWeight('98,8'), 98.8);
+  eq('parseWeight comma rejected', parseWeight('98,8'), null);
   eq('parseWeight spaces', parseWeight(' 98.8 '), 98.8);
   eq('parseWeight rounds', parseWeight('98.84'), 98.8);
   eq('parseWeight empty', parseWeight(''), null);
@@ -51,7 +51,8 @@
   eq('parseWeight huge', parseWeight('1000'), null);
 
   // validateEntry: today only, no past or future dates
-  eq('validate ok → today', validateEntry('98,8', '2026-10-10'), { date: '2026-10-10', weight: 98.8 });
+  eq('validate ok → today', validateEntry('98.8', '2026-10-10'), { date: '2026-10-10', weight: 98.8 });
+  eq('validate comma rejected', validateEntry('98,8', '2026-10-10'), { error: 'Enter a valid weight first' });
   eq('validate bad weight', validateEntry('', '2026-10-10'), { error: 'Enter a valid weight first' });
 
   // seedIfNeeded (Review Focus 5)
@@ -68,6 +69,44 @@
   // dropBefore: one-time cleanup of test entries before the Oct. 9 start
   eq('dropBefore', dropBefore([{ date: '2026-10-07', weight: 99 }, SEED, { date: '2026-10-10', weight: 98.5 }], SEED.date),
      [SEED, { date: '2026-10-10', weight: 98.5 }]);
+
+  // parseGoal (dot decimals only)
+  eq('parseGoal dot', parseGoal('72.5'), 72.5);
+  eq('parseGoal comma rejected', parseGoal('72,5'), null);
+  eq('parseGoal number', parseGoal(75), 75);
+  eq('parseGoal too small', parseGoal('0.5'), null);
+  eq('parseGoal empty', parseGoal(''), null);
+  eq('parseGoal null', parseGoal(null), null);
+
+  // makeBackup / readBackup round trip
+  const bk = makeBackup([{ date: '2026-10-10', weight: 98.4 }, SEED], 72.5, '2026-10-10');
+  eq('backup shape', JSON.parse(bk), { app: 'weight-tracker', version: 1, exported: '2026-10-10', goal: 72.5,
+    entries: [SEED, { date: '2026-10-10', weight: 98.4 }] });
+  eq('backup round trip', readBackup(bk), { entries: [SEED, { date: '2026-10-10', weight: 98.4 }], goal: 72.5, skipped: 0 });
+
+  // readBackup errors and skips (Review Focus 1, 5)
+  eq('readBackup not json', readBackup('{nope'), { error: "That isn't a Weight Tracker backup" });
+  eq('readBackup other app', readBackup('{"app":"other","entries":[]}'), { error: "That isn't a Weight Tracker backup" });
+  eq('readBackup no entries array', readBackup('{"app":"weight-tracker"}'), { error: "That isn't a Weight Tracker backup" });
+  eq('readBackup zero valid', readBackup('{"app":"weight-tracker","entries":[{"date":"x","weight":1}]}'), { error: 'Backup has no entries' });
+  eq('readBackup skips bad + bad goal', readBackup(JSON.stringify({ app: 'weight-tracker', goal: 'abc', entries: [SEED, { date: 'bad', weight: 1 }] })),
+     { entries: [SEED], goal: null, skipped: 1 });
+  eq('readBackup duplicate date, last wins', readBackup(JSON.stringify({ app: 'weight-tracker', entries: [SEED, { date: '2026-10-09', weight: 97 }] })),
+     { entries: [{ date: '2026-10-09', weight: 97 }], goal: null, skipped: 1 });
+
+  // removeEntry
+  eq('removeEntry', removeEntry([SEED, { date: '2026-10-10', weight: 98.4 }], '2026-10-09'), [{ date: '2026-10-10', weight: 98.4 }]);
+  eq('removeEntry missing', removeEntry([SEED], '2026-01-01'), [SEED]);
+
+  // chartPoints (200×100, pad 10)
+  eq('chart 2 entries', chartPoints([{ date: '2026-10-01', weight: 80 }, { date: '2026-10-11', weight: 78 }], 75, 200, 100, 10),
+     { points: [{ x: 10, y: 16.7, date: '2026-10-01', weight: 80 }, { x: 190, y: 43.3, date: '2026-10-11', weight: 78 }],
+       goalY: 83.3, min: 74.5, max: 80.5 });
+  eq('chart 1 entry centred', chartPoints([{ date: '2026-10-01', weight: 80 }], 75, 200, 100, 10).points,
+     [{ x: 100, y: 16.7, date: '2026-10-01', weight: 80 }]);
+  eq('chart goal above weights', chartPoints([{ date: '2026-10-01', weight: 80 }, { date: '2026-10-11', weight: 78 }], 100, 200, 100, 10),
+     { points: [{ x: 10, y: 81.3, date: '2026-10-01', weight: 80 }, { x: 190, y: 88.3, date: '2026-10-11', weight: 78 }],
+       goalY: 11.7, min: 77.5, max: 100.5 });
 
   document.getElementById('out').textContent =
     fails.length ? 'FAIL\n' + fails.join('\n') : 'ALL PASS';

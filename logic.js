@@ -34,7 +34,8 @@ function parseEntries(raw) {
 }
 
 function parseWeight(text) {
-  const s = String(text == null ? '' : text).trim().replace(',', '.');
+  // Dot decimals only: "90,4" is rejected, never converted (user decision 2026-10-10).
+  const s = String(text == null ? '' : text).trim();
   if (!/^\d+(\.\d+)?$/.test(s)) return null;
   const n = Math.round(Number(s) * 10) / 10;
   return n > 0 && n < 1000 ? n : null;
@@ -63,4 +64,46 @@ function dropBefore(entries, date) {
 // so deleting every entry later stays empty.
 function seedIfNeeded(entries, seeded) {
   return { entries: seeded || entries.length ? entries : [{ ...SEED }], seeded: true };
+}
+
+// Goal uses the weight rules (dot decimals, 0.1 rounding) but must be at least 1 kg.
+function parseGoal(text) {
+  const n = parseWeight(text);
+  return n !== null && n >= 1 ? n : null;
+}
+
+function makeBackup(entries, goal, today) {
+  return JSON.stringify({ app: 'weight-tracker', version: 1, exported: today, goal, entries: sortEntries(entries) }, null, 2);
+}
+
+const NOT_A_BACKUP = "That isn't a Weight Tracker backup";
+
+// Valid entries are kept (one per date, last wins); everything else counts as skipped.
+function readBackup(text) {
+  let data;
+  try { data = JSON.parse(text); } catch (e) { return { error: NOT_A_BACKUP }; }
+  if (!data || data.app !== 'weight-tracker' || !Array.isArray(data.entries)) return { error: NOT_A_BACKUP };
+  const valid = parseEntries(JSON.stringify({ entries: data.entries }));
+  const entries = sortEntries(valid.reduce((acc, e) => upsert(acc, e.date, e.weight), []));
+  if (!entries.length) return { error: 'Backup has no entries' };
+  return { entries, goal: parseGoal(data.goal), skipped: data.entries.length - entries.length };
+}
+
+function removeEntry(entries, date) {
+  return entries.filter(e => e.date !== date);
+}
+
+// Chart geometry: x proportional to date, y range = weights + goal padded by 0.5 kg.
+function chartPoints(sorted, goal, width, height, pad) {
+  const r = v => Math.round(v * 10) / 10;
+  const ws = sorted.map(e => e.weight).concat(goal == null ? [] : [goal]);
+  const min = Math.min(...ws) - 0.5, max = Math.max(...ws) + 0.5;
+  const t0 = Date.parse(sorted[0].date), t1 = Date.parse(sorted[sorted.length - 1].date);
+  const x = t => t1 === t0 ? width / 2 : pad + (t - t0) / (t1 - t0) * (width - 2 * pad);
+  const y = w => pad + (max - w) / (max - min) * (height - 2 * pad);
+  return {
+    points: sorted.map(e => ({ x: r(x(Date.parse(e.date))), y: r(y(e.weight)), date: e.date, weight: e.weight })),
+    goalY: goal == null ? null : r(y(goal)),
+    min, max
+  };
 }

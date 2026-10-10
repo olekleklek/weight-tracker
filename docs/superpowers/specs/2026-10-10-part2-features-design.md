@@ -92,7 +92,7 @@ Goal replaces every hard-coded 75: summary "to go" text, the "hit your goal" tex
 
 ## Logic (pure, in `logic.js`, each tested in `test.html`)
 
-- `parseGoal(text) → number|null` — same number rules as `parseWeight` (comma ok, 0 < g < 1000, 0.1 rounding).
+- `parseGoal(text) → number|null` — same number rules as `parseWeight` (dot decimals only — "90,4" is rejected, user decision 2026-10-10; 1 ≤ g < 1000, 0.1 rounding).
 - `makeBackup(entries, goal, today) → string` — JSON as above, entries sorted by date.
 - `readBackup(text) → { entries, goal, skipped } | { error }` — errors: `"That isn't a Weight Tracker backup"` (not JSON / wrong `app` / no `entries` array), `"Backup has no entries"` (zero valid entries). `goal` is `null` if missing/invalid.
 - `removeEntry(entries, date) → entries[]`.
