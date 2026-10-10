@@ -44,19 +44,21 @@
   body {
     margin: 0; background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    /* Top padding leaves a 44px lane for the fixed ⚙ button so it never covers the card. */
+    --pad-top: calc(max(8px, env(safe-area-inset-top)) + 52px);
+    padding: var(--pad-top) max(16px, env(safe-area-inset-right))
              max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   }
   /* One screen, no page scroll: the group is centred vertically; once the table outgrows
      the space, only the table scrolls (card and summary stay put). */
   main {
     max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 1rem;
-    height: calc(100svh - max(16px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom)));
+    height: calc(100svh - var(--pad-top) - max(16px, env(safe-area-inset-bottom)));
   }
   main > * { flex-shrink: 0; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
-  .today { margin: 0; font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+  .today { margin: 0 0 12px; font-size: 15px; font-weight: 500; color: var(--text-secondary); }
   .entry { display: flex; gap: 8px; align-items: center; }
   .weight { flex: 1; position: relative; }
   .weight input {
@@ -65,9 +67,11 @@
     min-width: 0; -webkit-appearance: none; appearance: none;
   }
   .weight span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-secondary); pointer-events: none; }
+  /* Same 52px height as the weight input; narrow and lighter. */
   #wt-submit {
-    min-width: 96px; height: 52px; border: none; border-radius: 10px; background: var(--accent); color: #fff;
-    font-family: inherit; font-size: 17px; font-weight: 700; letter-spacing: 0.5px; cursor: pointer;
+    width: 72px; height: 52px; margin: 0; padding: 0; border: none; border-radius: 10px; flex-shrink: 0;
+    background: var(--accent); color: #fff; font-family: inherit; font-size: 15px; font-weight: 600;
+    line-height: 1; letter-spacing: 0.3px; cursor: pointer; -webkit-appearance: none; appearance: none;
   }
   .error { margin: 8px 0 0; min-height: 1em; text-align: right; font-size: 13px; color: var(--text-danger); }
   .warn { margin: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--text-danger); background: var(--surface-2); color: var(--text-danger); font-size: 14px; }
@@ -90,10 +94,14 @@
   #wt-delta { margin: 4px 0 0; font-size: 14px; color: var(--text-secondary); }
   #wt-quote { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--border); font-size: 14px; font-style: italic; color: var(--quote); }
   #wt-empty { text-align: center; color: var(--text-muted); font-size: 14px; }
-  .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  /* ⚙ fixed to the top-right of the screen, outside the logging card, clear of the notch. */
   .icon-btn {
-    all: unset; cursor: pointer; width: 44px; height: 44px; margin: -10px -10px -10px 0; border-radius: 10px;
+    all: unset; cursor: pointer; width: 44px; height: 44px; border-radius: 10px;
     display: grid; place-items: center; font-size: 22px; color: var(--text-secondary);
+  }
+  .settings-btn {
+    position: fixed; z-index: 5;
+    top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right));
   }
   .backdrop { position: fixed; inset: 0; z-index: 10; background: rgb(0 0 0 / 0.45); }
   .sheet {
@@ -136,16 +144,14 @@
 </style>
 </head>
 <body>
+<button id="wt-settings-btn" class="icon-btn settings-btn" type="button" aria-label="Settings">&#9881;&#xFE0E;</button>
 <main>
   <h1 class="sr-only">Weight tracker: log your weight in kilograms and see gain or loss versus your last entry.</h1>
 
   <p id="wt-storage" class="warn" role="alert" hidden>Not saved — storage is unavailable on this device.</p>
 
   <section class="card">
-    <div class="card-top">
-      <p id="wt-today" class="today"></p>
-      <button id="wt-settings-btn" class="icon-btn" type="button" aria-label="Settings">&#9881;&#xFE0E;</button>
-    </div>
+    <p id="wt-today" class="today"></p>
     <form id="wt-form" class="entry" novalidate>
       <div class="weight">
         <label class="sr-only" for="wt-weight">Weight in kg</label>
