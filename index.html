@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Weight Tracker</title>
-<meta name="theme-color" content="#26215C">
+<meta name="theme-color" content="#F6F1E7">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -16,97 +16,127 @@
   catch (e) { document.documentElement.dataset.theme = 'system'; }
 </script>
 <style>
+  @font-face {
+    font-family: 'Instrument Sans';
+    src: url('fonts/InstrumentSans.woff2') format('woff2');
+    font-weight: 400 700; font-style: normal; font-display: swap;
+  }
   :root {
     color-scheme: light dark;
-    --bg: #F7F6FB; --surface-1: #FFFFFF; --surface-2: #F1F0F7;
-    --border: #E2E0EC; --border-strong: #CFCCE0;
-    --text: #1B1830; --text-secondary: #5E5A75; --text-muted: #8C88A3; --text-danger: #B3261E;
-    --row-alt: #EEEDFE; --accent: #26215C; --quote: #534AB7; --gain: #993C1D; --loss: #0F6E56;
+    --bg: #F6F1E7; --surface-1: #FFFFFF; --surface-2: #F1EBDD;
+    --border: #E3DACA; --border-strong: #D2C7B2;
+    --text: #2B2A24; --text-secondary: #6B675C; --text-muted: #9A9483; --text-danger: #B3261E;
+    --accent: #2F5D3A; --on-accent: #FFFFFF; --loss: #3E7A4A; --gain: #C2622D;
+    --streak-bg: #FBF3E8; --quote: #2F5D3A; --row-alt: #FBF8F1;
   }
   :root[data-theme="light"] { color-scheme: light; }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --bg: #121019; --surface-1: #1C1927; --surface-2: #232032;
-    --border: #34304A; --border-strong: #46415F;
-    --text: #ECEAF5; --text-secondary: #B4B0C8; --text-muted: #8A86A0; --text-danger: #F2B8B5;
-    --row-alt: #2A2640; --accent: #7F77DD; --quote: #AFA9EC; --gain: #F0997B; --loss: #5DCAA5;
+    --bg: #171611; --surface-1: #22201A; --surface-2: #2B2820;
+    --border: #3A362C; --border-strong: #4A4538;
+    --text: #EDE6D6; --text-secondary: #B8B0A0; --text-muted: #8C8576; --text-danger: #F2B8B5;
+    --accent: #6FAE6A; --on-accent: #10200F; --loss: #8FD08A; --gain: #F0A57A;
+    --streak-bg: #3A2A1E; --quote: #A9D7A0; --row-alt: #26231C;
   }
   @media (prefers-color-scheme: dark) {
     :root[data-theme="system"] {
-      --bg: #121019; --surface-1: #1C1927; --surface-2: #232032;
-      --border: #34304A; --border-strong: #46415F;
-      --text: #ECEAF5; --text-secondary: #B4B0C8; --text-muted: #8A86A0; --text-danger: #F2B8B5;
-      --row-alt: #2A2640; --accent: #7F77DD; --quote: #AFA9EC; --gain: #F0997B; --loss: #5DCAA5;
+      --bg: #171611; --surface-1: #22201A; --surface-2: #2B2820;
+      --border: #3A362C; --border-strong: #4A4538;
+      --text: #EDE6D6; --text-secondary: #B8B0A0; --text-muted: #8C8576; --text-danger: #F2B8B5;
+      --accent: #6FAE6A; --on-accent: #10200F; --loss: #8FD08A; --gain: #F0A57A;
+      --streak-bg: #3A2A1E; --quote: #A9D7A0; --row-alt: #26231C;
     }
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     /* Top padding leaves a 44px lane for the fixed ⚙ button so it never covers the card. */
     --pad-top: calc(max(8px, env(safe-area-inset-top)) + 52px);
     padding: var(--pad-top) max(16px, env(safe-area-inset-right))
              max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   }
-  /* One screen, no page scroll: the group is centred vertically; once the table outgrows
-     the space, only the table scrolls (card and summary stay put). */
+  /* One screen, no page scroll: the group is centred vertically; once the history outgrows
+     the space, only the history scrolls (cards and summary stay put). */
   main {
-    max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 1rem;
+    max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 12px;
     height: calc(100svh - var(--pad-top) - max(16px, env(safe-area-inset-bottom)));
   }
   main > * { flex-shrink: 0; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
-  .today { margin: 0 0 12px; font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 16px; padding: 14px; }
+  /* date + streak badge row; wraps so a long badge drops below the date instead of squeezing it */
+  .card-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin-bottom: 10px; }
+  .today { margin: 0; font-size: 15px; font-weight: 600; color: var(--text-secondary); }
   #wt-today { color: var(--loss); } /* same green as weight lost in the Change column */
-  .streak { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--gain); }
-  .done { margin-top: 12px; }
-  .done p { margin: 0; font-size: 14px; }
+  .streak {
+    display: inline-flex; align-items: center; gap: 5px; margin: 0; padding: 3px 10px 3px 6px; border-radius: 999px;
+    background: var(--streak-bg); color: var(--gain); font-size: 13px; font-weight: 700; white-space: nowrap;
+  }
+  .flame-icon { width: 14px; height: 16px; flex-shrink: 0; overflow: visible; }
+  .done { margin-top: 10px; }
+  .done p { margin: 0; font-size: 13px; }
   .weight input:disabled, #wt-submit:disabled { opacity: 0.45; cursor: not-allowed; }
-  #wt-done-weight { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  #wt-done-weight { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
   .congrats {
     position: fixed; z-index: 12; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    width: min(340px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px;
-    padding: 24px 20px 20px; border-radius: 16px; text-align: center;
+    width: min(320px, calc(100vw - 32px)); display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 20px 18px 18px; border-radius: 22px; text-align: center;
     background: var(--surface-1); box-shadow: 0 10px 30px rgb(0 0 0 / 0.3);
   }
   .congrats p { margin: 0; }
-  #wt-congrats-msg { font-size: 18px; font-weight: 600; line-height: 1.35; }
+  #wt-congrats-msg { font-size: 17px; font-weight: 700; line-height: 1.35; }
+  .kilo-pop { width: 150px; height: auto; overflow: visible; filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.16)); }
   .entry { display: flex; gap: 8px; align-items: center; }
   .weight { flex: 1; position: relative; }
   .weight input {
-    width: 100%; height: 52px; border: 1px solid var(--border-strong); border-radius: 10px; padding: 0 40px 0 14px;
-    color: var(--text); background: var(--surface-1); font-family: inherit; font-size: 18px; font-weight: 500;
+    width: 100%; height: 52px; border: 1px solid var(--border-strong); border-radius: 12px; padding: 0 40px 0 14px;
+    color: var(--text); background: var(--surface-2); font-family: inherit; font-size: 18px; font-weight: 500;
     min-width: 0; -webkit-appearance: none; appearance: none;
   }
   .weight span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-secondary); pointer-events: none; }
   /* Same 52px height as the weight input; narrow and lighter. */
   #wt-submit {
-    width: 72px; height: 52px; margin: 0; padding: 0; border: none; border-radius: 10px; flex-shrink: 0;
-    background: var(--accent); color: #fff; font-family: inherit; font-size: 15px; font-weight: 600;
+    width: 72px; height: 52px; margin: 0; padding: 0; border: none; border-radius: 12px; flex-shrink: 0;
+    background: var(--accent); color: var(--on-accent); font-family: inherit; font-size: 15px; font-weight: 700;
     line-height: 1; letter-spacing: 0.3px; cursor: pointer; -webkit-appearance: none; appearance: none;
   }
   .error { margin: 8px 0 0; min-height: 1em; text-align: right; font-size: 13px; color: var(--text-danger); }
-  .warn { margin: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--text-danger); background: var(--surface-2); color: var(--text-danger); font-size: 14px; }
+  .warn { margin: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--text-danger); background: var(--surface-1); color: var(--text-danger); font-size: 14px; }
   .table-wrap {
     flex-shrink: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch;
-    background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 12px; padding: 0 0.5rem 0.5rem;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
   }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { padding: 10px 8px; border: 1px solid var(--border-strong); text-align: right; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: right; }
   th:first-child, td:first-child { text-align: left; }
-  th { color: var(--text-secondary); font-weight: 500; position: sticky; top: 0; background: var(--surface-2); }
-  td { background: var(--surface-1); }
-  td:nth-child(2) { font-weight: 500; }
+  th { color: var(--text-secondary); font-weight: 600; font-size: 12.5px; position: sticky; top: 0; background: var(--surface-1); }
+  td:nth-child(2) { font-weight: 600; }
   tr.alt td { background: var(--row-alt); }
   tbody tr { cursor: pointer; }
+  tbody tr:last-child td { border-bottom: none; }
   .sort { all: unset; cursor: pointer; }
   .gain { color: var(--gain); } .loss { color: var(--loss); } .muted { color: var(--text-muted); }
-  .summary { background: var(--surface-1); border-radius: 8px; padding: 1rem; }
-  #wt-latest { margin: 0; font-size: 15px; font-weight: 500; }
-  #wt-delta { margin: 4px 0 0; font-size: 14px; color: var(--text-secondary); }
-  #wt-quote { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--border); font-size: 14px; font-style: italic; color: var(--quote); }
+  .summary { background: var(--surface-1); border: 1px solid var(--border); border-radius: 16px; padding: 14px; }
+  #wt-latest { margin: 0; font-size: 15px; font-weight: 700; }
+  #wt-delta { margin: 3px 0 0; font-size: 14px; color: var(--text-secondary); }
+  /* Kilo says the quote: bubble on the left, Kilo on the right, tail aimed at his head with a gap */
+  .say { display: flex; align-items: flex-end; gap: 10px; margin-top: 10px; }
+  .bubble {
+    position: relative; flex: 1; margin: 0 0 26px; padding: 9px 12px; border-radius: 14px;
+    background: var(--surface-2); color: var(--quote); font-size: 14px; font-style: italic; line-height: 1.35;
+  }
+  /* smooth curved tail (iMessage style) sweeping toward Kilo; it stops short of his head */
+  .bubble::before {
+    content: ''; position: absolute; right: -7px; bottom: 0; width: 20px; height: 18px;
+    background: var(--surface-2); border-bottom-left-radius: 16px 14px;
+  }
+  .bubble::after {
+    content: ''; position: absolute; right: -10px; bottom: 0; width: 10px; height: 18px;
+    background: var(--surface-1); border-bottom-left-radius: 10px;
+  }
+  .kilo { width: 62px; height: auto; flex-shrink: 0; overflow: visible; filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.12)); }
   #wt-empty { text-align: center; color: var(--text-muted); font-size: 14px; }
   /* ⚙ fixed to the top-right of the screen, outside the logging card, clear of the notch. */
   .icon-btn {
@@ -121,7 +151,7 @@
   .sheet {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; max-width: 560px; margin: 0 auto;
     max-height: 90svh; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
-    background: var(--surface-1); border-radius: 16px 16px 0 0;
+    background: var(--surface-1); border-radius: 20px 20px 0 0;
     padding: 20px 16px max(20px, env(safe-area-inset-bottom));
   }
   .sheet h2 { margin: 0; font-size: 18px; }
@@ -131,21 +161,22 @@
   .label, .field label { font-size: 14px; color: var(--text-secondary); }
   .grow { flex: 1; }
   .btn {
-    height: 52px; padding: 0 18px; border: none; border-radius: 10px; cursor: pointer;
-    background: var(--accent); color: #fff; font-family: inherit; font-size: 16px; font-weight: 600;
+    height: 52px; padding: 0 18px; border: none; border-radius: 12px; cursor: pointer;
+    background: var(--accent); color: var(--on-accent); font-family: inherit; font-size: 16px; font-weight: 700;
   }
   .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); }
   .btn-danger { background: transparent; color: var(--text-danger); border: 1px solid var(--text-danger); }
   .btn-wide { width: 100%; }
-  .seg { display: flex; padding: 3px; border-radius: 10px; background: var(--surface-2); }
+  .seg { display: flex; padding: 3px; border-radius: 12px; background: var(--surface-2); }
   .seg button {
-    all: unset; flex: 1; text-align: center; padding: 10px 0; border-radius: 8px; cursor: pointer;
-    font-size: 15px; color: var(--text);
+    all: unset; flex: 1; text-align: center; padding: 9px 0; border-radius: 9px; cursor: pointer;
+    font-size: 14px; color: var(--text);
   }
+  .seg button[aria-checked="true"] { background: var(--surface-1); font-weight: 600; box-shadow: 0 1px 3px rgb(0 0 0 / 0.14); }
   .history { flex-shrink: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
   .chart {
     height: 280px; min-height: 160px; flex-shrink: 1; display: flex; flex-direction: column;
-    background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 12px; padding: 8px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; padding: 8px;
   }
   .chart svg { flex: 1; width: 100%; min-height: 0; }
   .chart p { margin: 0; text-align: center; font-size: 13px; }
@@ -156,7 +187,6 @@
   .chart .axis { fill: var(--text-muted); font-size: 11px; }
   .chart .goal-tag { fill: var(--surface-1); stroke: var(--border-strong); stroke-width: 1; }
   .chart .goal-tag-text { fill: var(--loss); font-size: 11px; font-weight: 600; }
-  .seg button[aria-checked="true"] { background: var(--surface-1); font-weight: 600; box-shadow: 0 1px 3px rgb(0 0 0 / 0.18); }
 </style>
 </head>
 <body>
