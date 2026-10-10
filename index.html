@@ -187,7 +187,15 @@
       <button type="button" role="radio" data-theme-choice="dark">Dark</button>
     </div>
   </div>
-  <div class="field" id="wt-data-field"></div>
+  <div class="field" id="wt-data-field">
+    <span class="label">Your data</span>
+    <div class="row">
+      <button type="button" id="wt-backup" class="btn btn-secondary grow">Backup</button>
+      <button type="button" id="wt-restore" class="btn btn-secondary grow">Restore</button>
+    </div>
+    <input type="file" id="wt-restore-file" accept=".json,application/json" hidden>
+    <p id="wt-data-msg" class="error" role="alert"></p>
+  </div>
   <button type="button" class="btn btn-wide" data-close>Done</button>
 </section>
 
@@ -421,6 +429,43 @@
     if (!e || !confirm(`Delete ${fmtDate(e.date)} · ${e.weight.toFixed(1)} kg?`)) return;
     entries = removeEntry(entries, editDate);
     save();
+    closeSheet();
+    render();
+  });
+
+  // Backup: iPhone Share sheet with a .json file; download where file sharing isn't supported.
+  const dataMsg = $('wt-data-msg'), restoreFile = $('wt-restore-file');
+  const count = n => n + (n === 1 ? ' entry' : ' entries');
+  $('wt-backup').addEventListener('click', async () => {
+    dataMsg.textContent = '';
+    const name = `weight-backup-${today()}.json`;
+    const file = new File([makeBackup(entries, goal, today())], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'Weight Tracker backup' }); return; }
+      catch (e) { if (e.name === 'AbortError') return; } // user cancelled; any other failure falls back to download
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  // Restore: pick a file, confirm, then replace everything.
+  $('wt-restore').addEventListener('click', () => { dataMsg.textContent = ''; restoreFile.value = ''; restoreFile.click(); });
+  restoreFile.addEventListener('change', async () => {
+    const f = restoreFile.files[0];
+    if (!f) return;
+    const r = readBackup(await f.text());
+    if (r.error) { dataMsg.textContent = r.error; return; }
+    const skipped = r.skipped ? ` (${r.skipped} skipped)` : '';
+    if (!confirm(`Replace your ${count(entries.length)} with ${count(r.entries.length)}${skipped} from this backup?`)) return;
+    entries = r.entries;
+    save();
+    if (r.goal !== null) { goal = r.goal; write(GOAL_KEY, String(goal)); }
+    goalInput.value = String(goal);
     closeSheet();
     render();
   });
