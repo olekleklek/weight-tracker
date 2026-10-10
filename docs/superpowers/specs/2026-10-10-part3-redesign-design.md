@@ -17,7 +17,7 @@ Give the app its own look and a mascot, Kilo the turtle, who greets the user and
 | Mascot | **Kilo**, an original turtle (inspired by Koopa Troopa, not a copy). **Face only, front view**: round green head, terracotta sweatband across the forehead, big white eyes with small pupils, simple smile, small **cream** shell collar under the chin with three plate lines. Flat sticker style with a white outline. |
 | Moods | **Happy** (default), **Cheering** (eyes `^ ^`, open smile, holding the flame), **Resting** (eyes closed, small mouth, "z z"). |
 | Streak flame | **Classic two-tone** teardrop: orange outside, yellow core. |
-| Kilo's home | **Top card**, next to the streak badge and the date (option B). |
+| Kilo's home | **The summary card at the bottom**: Kilo says the motivational quote himself, in a speech bubble (changed from the top card after the preview). |
 | Congrats pop-up | Kilo **centred**, cheering. |
 | Home-screen icon | Happy Kilo **with the white sticker border** on moss green. |
 | Chart | **Zoom to the user's weights**. Goal shown as an edge tag (`Goal 75 kg ↓ · 23.3 kg to go`) until it falls inside the range, then the dashed goal line. |
@@ -120,22 +120,24 @@ Kilo always uses `filter="url(#kilo-sticker)"` plus a light `drop-shadow(0 2px 2
 ```
                                    ⚙   (fixed, top-right, unchanged)
 ┌───────────────────────────────────┐
-│ [Kilo 64px]  (🔥 5-day streak ·   │  Kilo card
-│              1 save left)         │
-│              Today · Oct. 10, '26 │  (green, --loss)
-├───────────────────────────────────┤
-│ [ 0.0              kg ] [ LOG ]   │  Log card (disabled + "✅ Logged today"
-│ ✅ Logged today: 98.3 kg          │   note after logging, as now)
+│ Today · Oct. 10, '26  (🔥 5-day streak) │  Log card: date (green) + streak badge
+│ [ 0.0              kg ] [ LOG ]   │  (disabled + "✅ Logged today" note
+│ ✅ Logged today: 98.3 kg          │   after logging, as now)
 ├───────────────────────────────────┤
 │ [ Table | Chart ]                 │
 │ history (only this scrolls)       │
 ├───────────────────────────────────┤
-│ Latest / change / quote           │  Summary
+│ Latest: 98.6 kg on Oct. 9, '26    │  Summary
+│ You've lost 0.2 kg since …        │
+│ ╭──────────────────────╮          │
+│ │ Progress, not        │ ▸  [Kilo]│  Kilo says the quote
+│ │ perfection. …        │    62px  │
+│ ╰──────────────────────╯          │
 └───────────────────────────────────┘
 ```
 
-- **Kilo card:** a white card holding Kilo on the left (64px) and, on the right, the streak badge (pill, `--streak-bg`, flame icon 14px, terracotta bold text; hidden when the streak is 0) above the green `Today · <date>` line. The existing ids `wt-streak` and `wt-today` move into this card.
-- **Log card:** the same form, input and LOG (72px wide, 52px tall). `wt-error` and `wt-done` stay below.
+- **Log card:** the first row holds the green `Today · <date>` line (left) and the streak badge (right). The badge is a pill with `--streak-bg`, a 14px flame icon and bold terracotta text, hidden when the streak is 0. The row wraps (`flex-wrap: wrap`), so a long badge like `4-day streak · 1 save left` drops below the date instead of squeezing it. Below that come the same input and LOG (72px wide, 52px tall), with `wt-error` and `wt-done` underneath as now.
+- **Summary card:** `Latest …` and the change line as now, then a row with the **speech bubble** (the quote, italic, `--quote` colour on `--surface-2`, radius 14px) and **Kilo** (62px) on the right, aligned to the bottom. The bubble's tail is a small triangle on its right side, pointing at Kilo's head and ending about 8px short of it, so there's a visible gap and it never touches. The bubble sits slightly higher than Kilo's chin (bottom margin about 26px) so the tail aims at his face. `wt-quote` becomes the bubble's text.
 - **Streak badge text:** unchanged (`5-day streak`, `· 1 save left` once a save is used). The 🔥 emoji is replaced by the flame SVG.
 - Cards: radius 16px, 1px `--border`, `--surface-1`. Table: white with soft row dividers (`--row-alt` stripes), sticky header. Segmented control and sheets restyled with the new tokens.
 
@@ -163,7 +165,7 @@ New pure function `chartRange(weights, goal)` → `{ min, max, goalInRange, goal
 
 Drawing:
 - In range: the dashed goal line with the `Goal 75 kg` label (as now).
-- Out of range: a small tag at the bottom-right (`down`) or top-right (`up`) edge: `Goal 75 kg ↓ · 23.3 kg to go` (↑ when the goal is above). The "to go" amount is `|latest − goal|` to 1 decimal.
+- Out of range: a small pill tag at the right edge, **above the x-axis date labels** so it never covers them. It goes at the bottom for `down` and at the top for `up`: `Goal 75 kg ↓ · 23.3 kg to go` (↑ when the goal is above). The "to go" amount is `|latest − goal|` to 1 decimal.
 - The y labels show the **real** highest and lowest logged weights (fixes the deferred "padded labels" minor), not the padded range.
 - The line uses `--accent`, dots `--accent`, the goal line and tag `--loss`.
 
@@ -184,7 +186,9 @@ Unchanged. If the font file fails to load, the system font is used (no error). I
    - updated `chartPoints` tests
    - `kiloMood` cases: happy, resting with a save used, cheering after a log, a save used but today logged → happy
 2. **Browser at 390×844, light and dark:**
-   - the Kilo card renders with Happy Kilo, and Resting appears when a save is used and today is unlogged
+   - the summary shows Happy Kilo saying the quote (the bubble's tail points at his head with a gap), and Resting appears when a save is used and today is unlogged
+   - a long streak badge (`4-day streak · 1 save left`) wraps below the date without squeezing it
+   - the chart's goal tag doesn't overlap the date labels
    - log → the pop-up shows centred Cheering Kilo and the flame badge; after "Nice!" the main Kilo is Cheering
    - the chart with the goal far below shows the tag and a non-flat line; with the goal near, the dashed line
    - 60 entries: the page doesn't scroll in either view
