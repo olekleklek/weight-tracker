@@ -190,6 +190,55 @@
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="kilo-sticker" x="-20%" y="-20%" width="140%" height="140%">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="4" result="d"/>
+      <feFlood flood-color="#ffffff"/><feComposite in2="d" operator="in" result="o"/>
+      <feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="kilo-head-clip"><ellipse cx="75" cy="72" rx="56" ry="50"/></clipPath>
+    <clipPath id="kilo-collar-clip"><ellipse cx="75" cy="123" rx="32" ry="10"/></clipPath>
+    <g id="kilo-collar">
+      <ellipse cx="75" cy="123" rx="32" ry="10" fill="#F3E3B5"/>
+      <g clip-path="url(#kilo-collar-clip)" stroke-width="2.4"><path d="M57 110 V136 M75 110 V136 M93 110 V136" fill="none"/></g>
+      <ellipse cx="75" cy="123" rx="32" ry="10" fill="none"/>
+    </g>
+    <g id="kilo-head">
+      <ellipse cx="75" cy="72" rx="56" ry="50" fill="#A8D88F" stroke="none"/>
+      <g clip-path="url(#kilo-head-clip)">
+        <path d="M10 50 Q75 22 140 50" fill="none" stroke="#24452C" stroke-width="17"/>
+        <path d="M10 50 Q75 22 140 50" fill="none" stroke="#D8643A" stroke-width="11"/>
+      </g>
+      <ellipse cx="75" cy="72" rx="56" ry="50" fill="none"/>
+    </g>
+    <!-- Happy mood's open eyes (Cheering and Resting draw their own eye shapes) -->
+    <g id="kilo-eyes" stroke-width="2.8">
+      <ellipse cx="56" cy="76" rx="13" ry="16" fill="#fff"/><circle cx="58" cy="80" r="4" fill="#1D1D1B" stroke="none"/><circle cx="59.5" cy="78" r="1.4" fill="#fff" stroke="none"/>
+      <ellipse cx="94" cy="76" rx="13" ry="16" fill="#fff"/><circle cx="96" cy="80" r="4" fill="#1D1D1B" stroke="none"/><circle cx="97.5" cy="78" r="1.4" fill="#fff" stroke="none"/>
+    </g>
+    <!-- two-tone flame, viewBox 0 0 60 68 -->
+    <g id="flame" stroke="#24452C" stroke-width="3" stroke-linejoin="round">
+      <path d="M30 4 C40 18 50 28 50 44 C50 57 41 64 30 64 C19 64 10 57 10 44 C10 34 16 28 20 20 C22 28 25 30 28 28 C26 20 26 12 30 4 Z" fill="#F08A3C"/>
+      <path d="M30 32 C35 40 40 44 40 51 C40 57 35 60 30 60 C25 60 20 57 20 51 C20 46 24 43 26 39 C27 43 29 43 30 41 C29 38 29 35 30 32 Z" fill="#FFD166" stroke-width="2.4"/>
+    </g>
+    <g id="kilo-happy" stroke="#24452C" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+      <use href="#kilo-collar"/><use href="#kilo-head"/><use href="#kilo-eyes"/>
+      <path d="M62 102 Q75 113 88 102" fill="none"/>
+    </g>
+    <g id="kilo-cheering" stroke="#24452C" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+      <use href="#kilo-collar"/><use href="#kilo-head"/>
+      <path d="M44 80 Q56 68 68 80 M82 80 Q94 68 106 80" fill="none"/>
+      <path d="M58 98 Q75 120 92 98 Z" fill="#B5523A"/>
+      <g transform="translate(122 2) scale(.55)"><use href="#flame"/></g>
+    </g>
+    <g id="kilo-resting" stroke="#24452C" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+      <use href="#kilo-collar"/><use href="#kilo-head"/>
+      <path d="M44 78 Q56 88 68 78 M82 78 Q94 88 106 78" fill="none"/>
+      <path d="M68 104 Q75 108 82 104" fill="none"/>
+    </g>
+  </defs>
+</svg>
 <button id="wt-settings-btn" class="icon-btn settings-btn" type="button" aria-label="Settings">&#9881;&#xFE0E;</button>
 <main>
   <h1 class="sr-only">Weight tracker: log your weight in kilograms and see gain or loss versus your last entry.</h1>
@@ -197,8 +246,10 @@
   <p id="wt-storage" class="warn" role="alert" hidden>Not saved — storage is unavailable on this device.</p>
 
   <section class="card">
-    <p id="wt-streak" class="streak" hidden></p>
-    <p id="wt-today" class="today"></p>
+    <div class="card-top">
+      <p id="wt-today" class="today"></p>
+      <p id="wt-streak" class="streak" hidden><svg class="flame-icon" viewBox="0 0 60 68" aria-hidden="true"><use href="#flame"/></svg><span id="wt-streak-text"></span></p>
+    </div>
     <form id="wt-form" class="entry" novalidate>
       <div class="weight">
         <label class="sr-only" for="wt-weight">Weight in kg</label>
@@ -240,7 +291,15 @@
   <div id="wt-summary" class="summary" hidden>
     <p id="wt-latest"></p>
     <p id="wt-delta"></p>
-    <p id="wt-quote"></p>
+    <div class="say">
+      <p id="wt-quote" class="bubble"></p>
+      <svg id="wt-kilo" class="kilo" viewBox="0 0 150 140" role="img" aria-label="Kilo the turtle">
+        <g filter="url(#kilo-sticker)"><use id="wt-kilo-use" href="#kilo-happy"/></g>
+        <g id="wt-kilo-z" hidden font-family="Instrument Sans, sans-serif" font-weight="700" fill="currentColor" style="color: var(--accent)">
+          <text x="118" y="22" font-size="22">z</text><text x="134" y="8" font-size="15" opacity=".7">z</text>
+        </g>
+      </svg>
+    </div>
   </div>
 
   <p id="wt-empty">No entries yet — log your first weight above.</p>
@@ -249,8 +308,9 @@
 <div id="wt-backdrop" class="backdrop" hidden></div>
 
 <div id="wt-congrats" class="congrats" role="alertdialog" aria-modal="true" aria-labelledby="wt-congrats-msg" hidden>
+  <svg class="kilo-pop" viewBox="0 0 150 140" aria-hidden="true"><g filter="url(#kilo-sticker)"><use href="#kilo-cheering"/></g></svg>
   <p id="wt-congrats-msg"></p>
-  <p id="wt-congrats-streak" class="streak" hidden></p>
+  <p id="wt-congrats-streak" class="streak" hidden><svg class="flame-icon" viewBox="0 0 60 68" aria-hidden="true"><use href="#flame"/></svg><span id="wt-congrats-streak-text"></span></p>
   <button type="button" id="wt-congrats-ok" class="btn btn-wide">Nice!</button>
 </div>
 
@@ -430,6 +490,7 @@
     entries = upsert(entries, result.date, result.weight);
     save();
     weightInput.value = '';
+    cheeredOn = result.date;
     render();
     const sorted = sortEntries(entries);
     const prev = sorted[sorted.findIndex(e => e.date === result.date) - 1];
@@ -448,14 +509,20 @@
     todayEl.textContent = `Today · ${fmtDate(now)}`;
     const { days, saves } = streakInfo(entries, now);
     streakEl.hidden = days === 0;
-    streakEl.textContent = `🔥 ${days}-day streak` + (saves < STREAK_SAVES ? ` · ${saves} save${saves === 1 ? '' : 's'} left` : '');
+    streakText.textContent = `${days}-day streak` + (saves < STREAK_SAVES ? ` · ${saves} save${saves === 1 ? '' : 's'} left` : '');
     // Once a day: after today's entry the input and LOG stay visible but disabled until tomorrow.
     const todays = entries.find(e => e.date === now);
     weightInput.disabled = submitBtn.disabled = !!todays;
     doneEl.hidden = !todays;
     if (todays) { doneWeight.textContent = `✅ Logged today: ${todays.weight.toFixed(1)} kg`; errorEl.textContent = ''; }
+    // Kilo's mood: cheering after today's log, resting while a save is in use, happy otherwise.
+    const mood = kiloMood({ days, saves }, !!todays, cheeredOn === now);
+    kiloUse.setAttribute('href', `#kilo-${mood}`);
+    kiloZ.toggleAttribute('hidden', mood !== 'resting');
   }
   const doneEl = $('wt-done'), doneWeight = $('wt-done-weight'), submitBtn = $('wt-submit');
+  const streakText = $('wt-streak-text'), kiloUse = $('wt-kilo-use'), kiloZ = $('wt-kilo-z');
+  let cheeredOn = null; // date of today's successful log (memory only), so Kilo cheers for the rest of that day
 
   // Congrats pop-up: stays until "Nice!" is tapped (or Enter/Escape); tapping outside does nothing.
   const congratsEl = $('wt-congrats'), congratsMsg = $('wt-congrats-msg'), congratsStreak = $('wt-congrats-streak');
@@ -463,7 +530,7 @@
   function showCongrats(message, days) {
     congratsMsg.textContent = message;
     congratsStreak.hidden = days < 2 || message.includes('-day streak'); // don't repeat a milestone message
-    congratsStreak.textContent = `🔥 ${days}-day streak`;
+    $('wt-congrats-streak-text').textContent = `${days}-day streak`;
     $('wt-backdrop').hidden = false;
     congratsEl.hidden = false;
     congratsOk.focus(); // also closes the iPhone keyboard
