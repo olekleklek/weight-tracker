@@ -120,6 +120,18 @@
     all: unset; flex: 1; text-align: center; padding: 10px 0; border-radius: 8px; cursor: pointer;
     font-size: 15px; color: var(--text);
   }
+  .history { flex-shrink: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  .chart {
+    height: 280px; min-height: 160px; flex-shrink: 1; display: flex; flex-direction: column;
+    background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 12px; padding: 8px;
+  }
+  .chart svg { flex: 1; width: 100%; min-height: 0; }
+  .chart p { margin: 0; text-align: center; font-size: 13px; }
+  .chart .line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+  .chart .dot { fill: var(--accent); }
+  .chart .goal { stroke: var(--loss); stroke-width: 1.5; stroke-dasharray: 6 5; }
+  .chart .goal-label { fill: var(--loss); font-size: 12px; }
+  .chart .axis { fill: var(--text-muted); font-size: 11px; }
   .seg button[aria-checked="true"] { background: var(--surface-1); font-weight: 600; box-shadow: 0 1px 3px rgb(0 0 0 / 0.18); }
 </style>
 </head>
@@ -145,7 +157,12 @@
     <p id="wt-error" class="error" role="alert"></p>
   </section>
 
-  <div id="wt-table-wrap" class="table-wrap" hidden>
+  <div id="wt-history" class="history" hidden>
+  <div class="seg" role="radiogroup" aria-label="History view">
+    <button type="button" role="radio" data-view="table">Table</button>
+    <button type="button" role="radio" data-view="chart">Chart</button>
+  </div>
+  <div id="wt-table-wrap" class="table-wrap">
     <table>
       <thead>
         <tr>
@@ -156,6 +173,11 @@
       </thead>
       <tbody id="wt-table-body"></tbody>
     </table>
+  </div>
+  <div id="wt-chart" class="chart" hidden>
+    <svg id="wt-chart-svg" role="img" aria-label="Weight over time"></svg>
+    <p id="wt-chart-note" class="muted">Log another day to see your trend.</p>
+  </div>
   </div>
 
   <div id="wt-summary" class="summary" hidden>
@@ -223,7 +245,7 @@
   const tableWrap = $('wt-table-wrap'), tableBody = $('wt-table-body');
   const sortBtn = $('wt-sort-date'), sortArrow = $('wt-sort-arrow');
   const summaryEl = $('wt-summary'), latestEl = $('wt-latest'), deltaEl = $('wt-delta'), quoteEl = $('wt-quote');
-  const emptyEl = $('wt-empty');
+  const emptyEl = $('wt-empty'), historyEl = $('wt-history');
 
   const KEY = 'weight-entries', SEEDED_KEY = 'weight-seeded', CLEANUP_KEY = 'weight-cleanup-1', unit = 'kg';
   const GOAL_KEY = 'weight-goal', THEME_KEY = 'weight-theme', VIEW_KEY = 'weight-view';
@@ -305,7 +327,7 @@
     const last = sorted[sorted.length - 1];
     emptyEl.hidden = !!last;
     summaryEl.hidden = !last;
-    tableWrap.hidden = !last;
+    historyEl.hidden = !last;
     if (!last) return;
 
     latestEl.textContent = `Latest: ${last.weight.toFixed(1)} kg on ${fmtDate(last.date)}`;
@@ -329,6 +351,7 @@
         : `You've hit your ${goal} kg goal — keep it steady.`;
     }
     renderTable(sorted);
+    drawChart();
   }
 
   form.addEventListener('submit', ev => {
@@ -470,8 +493,43 @@
     render();
   });
 
+  // History view: Table | Chart, last choice remembered.
+  const chartBox = $('wt-chart'), chartSvg = $('wt-chart-svg'), chartNote = $('wt-chart-note');
+  const viewBtns = document.querySelectorAll('[data-view]');
+  let view = read(VIEW_KEY) === 'chart' ? 'chart' : 'table';
+  function applyView() {
+    tableWrap.hidden = view !== 'table';
+    chartBox.hidden = view !== 'chart';
+    viewBtns.forEach(b => b.setAttribute('aria-checked', String(b.dataset.view === view)));
+    drawChart();
+  }
+  viewBtns.forEach(b => b.addEventListener('click', () => { view = b.dataset.view; write(VIEW_KEY, view); applyView(); }));
+
+  // Chart: inline SVG, coloured by CSS variables so it follows the theme.
+  function drawChart() {
+    if (chartBox.hidden || historyEl.hidden) return;
+    const sorted = sortEntries(entries);
+    const w = chartSvg.clientWidth, h = chartSvg.clientHeight, pad = 36;
+    if (!sorted.length || !w || !h) return;
+    const c = chartPoints(sorted, goal, w, h, pad);
+    const first = sorted[0].date, last = sorted[sorted.length - 1].date;
+    chartSvg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    chartSvg.innerHTML =
+      `<line class="goal" x1="${pad}" x2="${w - pad}" y1="${c.goalY}" y2="${c.goalY}"/>` +
+      `<text class="goal-label" x="${w - pad}" y="${c.goalY - 6}" text-anchor="end">Goal ${goal} kg</text>` +
+      (c.points.length > 1 ? `<polyline class="line" points="${c.points.map(p => `${p.x},${p.y}`).join(' ')}"/>` : '') +
+      c.points.map(p => `<circle class="dot" cx="${p.x}" cy="${p.y}" r="3.5"/>`).join('') +
+      `<text class="axis" x="2" y="${pad}" dominant-baseline="middle">${c.max.toFixed(1)}</text>` +
+      `<text class="axis" x="2" y="${h - pad}" dominant-baseline="middle">${c.min.toFixed(1)}</text>` +
+      `<text class="axis" x="${pad}" y="${h - 8}">${fmtDate(first)}</text>` +
+      (first !== last ? `<text class="axis" x="${w - pad}" y="${h - 8}" text-anchor="end">${fmtDate(last)}</text>` : '');
+    chartNote.hidden = sorted.length > 1;
+  }
+  window.addEventListener('resize', drawChart);
+
   showToday();
   load();
+  applyView();
 
   // No offline cache on this computer (localhost / 127.0.0.1), so live previews always show the latest edits.
   const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
