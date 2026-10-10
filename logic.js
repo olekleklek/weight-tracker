@@ -40,30 +40,27 @@ function parseWeight(text) {
   return n > 0 && n < 1000 ? n : null;
 }
 
-function validateEntry(dateStr, weightText, today) {
+// Entries are always logged for today: no past or future dates.
+function validateEntry(weightText, today) {
   const weight = parseWeight(weightText);
   if (weight === null) return { error: 'Enter a valid weight first' };
-  const date = dateStr || today;
-  if (!DATE_RE.test(date)) return { error: 'Pick a valid date' };
-  if (date > today) return { error: "Date can't be in the future" };
-  return { date, weight };
+  return { date: today, weight };
+}
+
+// Display only; storage keeps 'YYYY-MM-DD'. '2026-10-10' -> "Oct. 10, '26" (May has no period).
+const MONTHS = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'];
+function fmtDate(date) {
+  const [y, m, d] = date.split('-');
+  return `${MONTHS[m - 1]} ${Number(d)}, '${y.slice(2)}`;
+}
+
+// One-time cleanup: drop entries dated before `date`.
+function dropBefore(entries, date) {
+  return entries.filter(e => e.date >= date);
 }
 
 // Seeds once. Once seeded (or data already exists) it never seeds again,
 // so deleting every entry later stays empty.
 function seedIfNeeded(entries, seeded) {
   return { entries: seeded || entries.length ? entries : [{ ...SEED }], seeded: true };
-}
-
-// iPhone home-screen apps resume without reloading. On a new day, move the date field
-// to today unless the user picked a date themselves (field differs from the value the app set).
-function resumeDate(fieldValue, autoValue, lastDay, today) {
-  return lastDay !== today && fieldValue === autoValue ? today : fieldValue;
-}
-
-function nextLogDate(date, today) {
-  const d = new Date(date + 'T00:00:00');
-  d.setDate(d.getDate() + 1);
-  const next = ymd(d);
-  return next > today ? today : next;
 }

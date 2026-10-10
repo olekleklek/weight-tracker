@@ -50,11 +50,9 @@
   eq('parseWeight text', parseWeight('abc'), null);
   eq('parseWeight huge', parseWeight('1000'), null);
 
-  // validateEntry (Review Focus 2)
-  eq('validate ok', validateEntry('2026-10-09', '98,8', '2026-10-09'), { date: '2026-10-09', weight: 98.8 });
-  eq('validate empty date → today', validateEntry('', '98', '2026-10-09'), { date: '2026-10-09', weight: 98 });
-  eq('validate future', validateEntry('2026-10-10', '98', '2026-10-09'), { error: "Date can't be in the future" });
-  eq('validate bad weight', validateEntry('2026-10-09', '', '2026-10-09'), { error: 'Enter a valid weight first' });
+  // validateEntry: today only, no past or future dates
+  eq('validate ok → today', validateEntry('98,8', '2026-10-10'), { date: '2026-10-10', weight: 98.8 });
+  eq('validate bad weight', validateEntry('', '2026-10-10'), { error: 'Enter a valid weight first' });
 
   // seedIfNeeded (Review Focus 5)
   eq('seed fresh', seedIfNeeded([], false), { entries: [SEED], seeded: true });
@@ -62,15 +60,14 @@
   eq('seed has data', seedIfNeeded([{ date: '2026-10-01', weight: 99 }], false),
      { entries: [{ date: '2026-10-01', weight: 99 }], seeded: true });
 
-  // nextLogDate
-  eq('next normal', nextLogDate('2026-10-08', '2026-10-09'), '2026-10-09');
-  eq('next capped', nextLogDate('2026-10-09', '2026-10-09'), '2026-10-09');
-  eq('next month end', nextLogDate('2026-09-30', '2026-12-01'), '2026-10-01');
+  // fmtDate: "Oct. 10, '26"; May has no period
+  eq('fmtDate oct', fmtDate('2026-10-10'), "Oct. 10, '26");
+  eq('fmtDate may', fmtDate('2027-05-03'), "May 3, '27");
+  eq('fmtDate jan', fmtDate('2030-01-31'), "Jan. 31, '30");
 
-  // resumeDate: iPhone home-screen apps resume without reloading (final review Important #1)
-  eq('resume next day, auto value → today', resumeDate('2026-10-09', '2026-10-09', '2026-10-09', '2026-10-10'), '2026-10-10');
-  eq('resume next day, user-picked date kept', resumeDate('2026-10-05', '2026-10-09', '2026-10-09', '2026-10-10'), '2026-10-05');
-  eq('resume same day, backfill auto value kept', resumeDate('2026-10-07', '2026-10-07', '2026-10-09', '2026-10-09'), '2026-10-07');
+  // dropBefore: one-time cleanup of test entries before the Oct. 9 start
+  eq('dropBefore', dropBefore([{ date: '2026-10-07', weight: 99 }, SEED, { date: '2026-10-10', weight: 98.5 }], SEED.date),
+     [SEED, { date: '2026-10-10', weight: 98.5 }]);
 
   document.getElementById('out').textContent =
     fails.length ? 'FAIL\n' + fails.join('\n') : 'ALL PASS';

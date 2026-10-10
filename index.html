@@ -7,7 +7,6 @@
 <meta name="theme-color" content="#26215C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Weight">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.png">
@@ -37,19 +36,24 @@
   }
   main { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 1rem; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
-  .entry { display: flex; gap: 8px; flex-wrap: wrap; }
-  .entry input {
-    height: 44px; border-radius: 8px; color: var(--text); background: var(--surface-1);
-    font-family: inherit; font-size: 16px; font-weight: 500; min-width: 0; -webkit-appearance: none;
+  /* First screen: logging card centred vertically; table and summary follow below. */
+  .hero {
+    min-height: calc(100svh - max(16px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom)));
+    display: flex; flex-direction: column; justify-content: center; gap: 1rem;
   }
-  #wt-date { flex: 1 1 140px; border: none; padding: 0 12px; }
-  .weight { flex: 1 1 140px; position: relative; }
-  #wt-weight { width: 100%; border: 1px solid var(--border-strong); padding: 0 36px 0 12px; }
-  .weight span { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--text-secondary); pointer-events: none; }
+  .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+  .today { margin: 0 0 12px; font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+  .entry { display: flex; gap: 8px; align-items: center; }
+  .weight { flex: 1; position: relative; }
+  #wt-weight {
+    width: 100%; height: 52px; border: 1px solid var(--border-strong); border-radius: 10px; padding: 0 40px 0 14px;
+    color: var(--text); background: var(--surface-1); font-family: inherit; font-size: 18px; font-weight: 500;
+    min-width: 0; -webkit-appearance: none; appearance: none;
+  }
+  .weight span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-secondary); pointer-events: none; }
   #wt-submit {
-    min-width: 64px; height: 44px; border: none; border-radius: 8px; background: var(--accent); color: #fff;
-    font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; cursor: pointer;
+    min-width: 96px; height: 52px; border: none; border-radius: 10px; background: var(--accent); color: #fff;
+    font-family: inherit; font-size: 17px; font-weight: 700; letter-spacing: 0.5px; cursor: pointer;
   }
   .error { margin: 8px 0 0; min-height: 1em; text-align: right; font-size: 13px; color: var(--text-danger); }
   .warn { margin: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--text-danger); background: var(--surface-2); color: var(--text-danger); font-size: 14px; }
@@ -74,12 +78,12 @@
 <main>
   <h1 class="sr-only">Weight tracker: log your weight in kilograms and see gain or loss versus your last entry.</h1>
 
+  <div class="hero">
   <p id="wt-storage" class="warn" role="alert" hidden>Not saved — storage is unavailable on this device.</p>
 
   <section class="card">
+    <p id="wt-today" class="today"></p>
     <form id="wt-form" class="entry" novalidate>
-      <label class="sr-only" for="wt-date">Date</label>
-      <input type="date" id="wt-date">
       <div class="weight">
         <label class="sr-only" for="wt-weight">Weight in kg</label>
         <input type="text" id="wt-weight" inputmode="decimal" autocomplete="off" placeholder="0.0">
@@ -89,6 +93,7 @@
     </form>
     <p id="wt-error" class="error" role="alert"></p>
   </section>
+  </div>
 
   <div id="wt-table-wrap" class="table-wrap" hidden>
     <table>
@@ -116,14 +121,14 @@
 <script>
 (function () {
   const $ = id => document.getElementById(id);
-  const form = $('wt-form'), dateInput = $('wt-date'), weightInput = $('wt-weight');
+  const form = $('wt-form'), todayEl = $('wt-today'), weightInput = $('wt-weight');
   const errorEl = $('wt-error'), storageEl = $('wt-storage');
   const tableWrap = $('wt-table-wrap'), tableBody = $('wt-table-body');
   const sortBtn = $('wt-sort-date'), sortArrow = $('wt-sort-arrow');
   const summaryEl = $('wt-summary'), latestEl = $('wt-latest'), deltaEl = $('wt-delta'), quoteEl = $('wt-quote');
   const emptyEl = $('wt-empty');
 
-  const KEY = 'weight-entries', SEEDED_KEY = 'weight-seeded', unit = 'kg', GOAL = 75;
+  const KEY = 'weight-entries', SEEDED_KEY = 'weight-seeded', CLEANUP_KEY = 'weight-cleanup-1', unit = 'kg', GOAL = 75;
   let entries = [];
   let sortDesc = true;
 
@@ -158,10 +163,11 @@
   }
 
   function load() {
-    let raw = null, seeded = false;
+    let raw = null, seeded = false, cleaned = false;
     try {
       raw = localStorage.getItem(KEY);
       seeded = localStorage.getItem(SEEDED_KEY) === '1';
+      cleaned = localStorage.getItem(CLEANUP_KEY) === '1';
     } catch (e) {
       storageEl.hidden = false;
     }
@@ -170,6 +176,12 @@
     entries = result.entries;
     if (!seeded && save()) {
       try { localStorage.setItem(SEEDED_KEY, '1'); } catch (e) { storageEl.hidden = false; }
+    }
+    // One-time: remove test entries logged before the Oct. 9, '26 start (user request, 2026-10-10).
+    if (!cleaned) {
+      const kept = dropBefore(entries, SEED.date);
+      if (kept.length !== entries.length) { entries = kept; save(); }
+      try { localStorage.setItem(CLEANUP_KEY, '1'); } catch (e) { storageEl.hidden = false; }
     }
     render();
   }
@@ -182,7 +194,7 @@
       let cell = '<span class="muted">—</span>';
       if (d === 0) cell = '<span class="muted">0.0</span>';
       else if (d !== null) cell = `<span class="${d > 0 ? 'gain' : 'loss'}">${d > 0 ? '+' : ''}${d.toFixed(1)}</span>`;
-      return `<tr${i % 2 ? ' class="alt"' : ''}><td>${e.date}</td><td>${e.weight.toFixed(1)}</td><td>${cell}</td></tr>`;
+      return `<tr${i % 2 ? ' class="alt"' : ''}><td>${fmtDate(e.date)}</td><td>${e.weight.toFixed(1)}</td><td>${cell}</td></tr>`;
     }).join('');
     sortArrow.textContent = sortDesc ? '↓' : '↑';
   }
@@ -195,17 +207,17 @@
     tableWrap.hidden = !last;
     if (!last) return;
 
-    latestEl.textContent = `Latest: ${last.weight.toFixed(1)} kg on ${last.date}`;
+    latestEl.textContent = `Latest: ${last.weight.toFixed(1)} kg on ${fmtDate(last.date)}`;
     if (sorted.length >= 2) {
       const prev = sorted[sorted.length - 2];
       const diff = +(last.weight - prev.weight).toFixed(1);
       const days = Math.round((Date.parse(last.date) - Date.parse(prev.date)) / 86400000);
       const dayLabel = days + (days === 1 ? ' day' : ' days');
       if (diff === 0) {
-        deltaEl.textContent = `No change since ${prev.date} (${dayLabel} ago).`;
+        deltaEl.textContent = `No change since ${fmtDate(prev.date)} (${dayLabel} ago).`;
         quoteEl.textContent = pick(steadyQuotes);
       } else {
-        deltaEl.textContent = `You've ${diff > 0 ? 'gained' : 'lost'} ${Math.abs(diff).toFixed(1)} kg since ${prev.date} (${dayLabel} ago).`;
+        deltaEl.textContent = `You've ${diff > 0 ? 'gained' : 'lost'} ${Math.abs(diff).toFixed(1)} kg since ${fmtDate(prev.date)} (${dayLabel} ago).`;
         quoteEl.textContent = pick(diff > 0 ? gainQuotes : lossQuotes);
       }
     } else {
@@ -221,8 +233,7 @@
   form.addEventListener('submit', ev => {
     ev.preventDefault(); // also handles Enter and the iPhone keyboard "Go" key
     errorEl.textContent = '';
-    const now = today();
-    const result = validateEntry(dateInput.value, weightInput.value, now);
+    const result = validateEntry(weightInput.value, today());
     if (result.error) {
       errorEl.textContent = result.error;
       return;
@@ -230,7 +241,7 @@
     entries = upsert(entries, result.date, result.weight);
     save();
     weightInput.value = '';
-    setDate(nextLogDate(result.date, now));
+    showToday();
     render();
   });
 
@@ -239,21 +250,11 @@
     renderTable(sortEntries(entries));
   });
 
-  // autoDate = the value the app itself put in the date field; lastDay = the day it did so.
-  let autoDate = '', lastDay = '';
-  function setDate(value) {
-    autoDate = dateInput.value = value;
-    lastDay = dateInput.max = today();
-  }
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) return;
-    const now = today();
-    const value = resumeDate(dateInput.value, autoDate, lastDay, now);
-    if (value !== dateInput.value) autoDate = dateInput.value = value;
-    lastDay = dateInput.max = now;
-  });
+  // iPhone home-screen apps resume without reloading, so refresh the label when shown again.
+  function showToday() { todayEl.textContent = `Today · ${fmtDate(today())}`; }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) showToday(); });
 
-  setDate(today());
+  showToday();
   load();
 
   if ('serviceWorker' in navigator) {
